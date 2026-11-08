@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KidtronLab — Interactive Electronics & Circuit Game | HOBBY HAT</title>
+  <meta name="description" content="Play KidtronLab: The interactive electrical circuit simulator and learning game for children and young makers. Build circuits, wire components, and master electronics hands-on.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="assets/brand/favicon.png">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2387329460020928"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- ========================================================================
+       HEADER & NAVIGATION
+       ======================================================================== -->
+  <header class="site-header">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" aria-label="HOBBY HAT Home">
+        <img src="assets/brand/logo.png" alt="HOBBY HAT Logo" class="brand-logo-img" width="42" height="42">
+        <div class="brand-title-wrap">
+          <span class="brand-name">HOBBY HAT</span>
+          <span class="brand-tagline">The Hub of Hobbyists</span>
+        </div>
+      </a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-links">
+          <li><a href="index.html#ages" class="nav-link">Age Stages</a></li>
+          <li><a href="index.html#catalog" class="nav-link">Toy Catalog</a></li>
+          <li><a href="index.html#hobbies" class="nav-link">Hobbies (15+)</a></li>
+          <li><a href="index.html#science" class="nav-link">Science of Play</a></li>
+          <li><a href="index.html#quiz" class="nav-link">Smart Quiz</a></li>
+          <li><a href="kidtronlab.html" class="nav-link active">KidtronLab</a></li>
+          <li><a href="about.html" class="nav-link">About</a></li>
+          <li><a href="contact.html" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-actions">
+        <a href="index.html#ages" class="btn btn-primary btn-sm">Explore by Age</a>
+        <button class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Drawer Menu -->
+  <div class="mobile-nav-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+    <div class="mobile-nav-panel">
+      <ul class="mobile-nav-links">
+        <li><a href="index.html#ages">Age Stages</a></li>
+        <li><a href="index.html#catalog">Toy Catalog</a></li>
+        <li><a href="index.html#hobbies">Hobbies (15+)</a></li>
+        <li><a href="index.html#science">Science of Play</a></li>
+        <li><a href="index.html#quiz">Smart Toy Quiz</a></li>
+        <li><a href="kidtronlab.html">KidtronLab (Play Game)</a></li>
+        <li><a href="about.html">About Our Mission</a></li>
+        <li><a href="contact.html">Contact Us</a></li>
+      </ul>
+      <a href="index.html#ages" class="btn btn-primary" style="width: 100%;">Find Toys for My Child</a>
+    </div>
+  </div>
+
+  <main>
+    <!-- Page Hero -->
+    <section class="page-hero">
+      <div class="container page-hero-content">
+        <span class="badge">⚡ Interactive Circuit & STEM Game</span>
+        <h1 class="page-title">KidtronLab — Circuit Simulator</h1>
+        <p class="page-lead">A laboratory-grade interactive circuit builder for curious students and young engineers. Draw flexible wires, connect real electronic components, and solve 28 curriculum challenges or build freely in the sandbox!</p>
+      </div>
+    </section>
+
+    <!-- Game Arena Section -->
+    <section class="section" style="padding-top: var(--space-4); padding-bottom: var(--space-7);">
+      <div class="container">
+        
+        <!-- ==================================================================
+             GOOGLE ADSENSE DISPLAY AD BANNER (BEFORE GAMEPLAY)
+             ================================================================== -->
+        <div class="adsense-placement-wrapper pre-game-ad" id="pre-game-ad-slot">
+          <span class="adsense-label">ADVERTISEMENT</span>
+          <div class="adsense-slot-box">
+            <ins class="adsbygoogle"
+                 style="display:block; min-height:90px;"
+                 data-ad-client="ca-pub-2387329460020928"
+                 data-ad-slot="auto"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>
+                 (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
+          </div>
+        </div>
+
+        <div class="game-container-card" id="kidtronlab-game-card">
+          <!-- Game Top Action Bar -->
+          <div class="game-top-bar">
+            <div class="game-status-badge">
+              <span class="status-dot"></span>
+              <span>KidtronLab Electronics Studio Ready</span>
+            </div>
+            
+            <div class="game-actions-group">
+              <button type="button" id="btn-fullscreen-player" class="btn btn-secondary btn-sm" title="Play Fullscreen" style="display: inline-flex; align-items: center; gap: 6px; color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                <span>Fullscreen</span>
+              </button>
+              
+              <button type="button" id="btn-reload-player" class="btn btn-secondary btn-sm" title="Reset Circuit Simulator" style="display: inline-flex; align-items: center; gap: 6px; color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Reset</span>
+              </button>
+
+              <a href="kidtron-game/index.html" target="_blank" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
+                <span>Full Window ↗</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Embedded Game Player -->
+          <div class="game-iframe-wrapper" id="game-frame-wrapper">
+            <iframe id="kidtron-game-frame" src="kidtron-game/index.html" allow="fullscreen" loading="eager" title="KidtronLab Circuit Game"></iframe>
+          </div>
+        </div>
+
+        <!-- Instructions & How to Play -->
+        <div class="game-instructions-section">
+          <div class="section-header left-aligned" style="margin-bottom: var(--space-4);">
+            <span class="badge accent">Quick Guide</span>
+            <h2>How to Play & Build Circuits</h2>
+            <p style="color: var(--color-muted);">Whether you're completing curriculum challenge levels or inventing custom circuits in the free sandbox, here is how to use the studio:</p>
+          </div>
+
+          <div class="instructions-grid">
+            <div class="instruction-step-card">
+              <div class="step-num-badge">1</div>
+              <h3>Pick & Place Components</h3>
+              <p>Drag cells, batteries, switches, lamps, buzzers, and transformers from the left drawer directly onto your breadboard.</p>
+            </div>
+
+            <div class="instruction-step-card">
+              <div class="step-num-badge">2</div>
+              <h3>Draw Flexible Wires</h3>
+              <p>Click and drag from any component terminal pin. Move your cursor to curve around obstacles and snap onto destination pins.</p>
+            </div>
+
+            <div class="instruction-step-card">
+              <div class="step-num-badge">3</div>
+              <h3>Create Solder Joints</h3>
+              <p>Need parallel branches? Tap or drag any wire onto an existing wire to snap and create a solid solder junction node.</p>
+            </div>
+
+            <div class="instruction-step-card">
+              <div class="step-num-badge">4</div>
+              <h3>Test & Measure Live</h3>
+              <p>Observe real electron current flow, inspect voltages with the digital multimeter, and toggle switches to see your circuit come alive!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             GOOGLE ADSENSE DISPLAY AD BANNER (POST-GAME)
+             ================================================================== -->
+        <div class="adsense-placement-wrapper" style="margin-top: var(--space-6); margin-bottom: var(--space-4);">
+          <span class="adsense-label">ADVERTISEMENT</span>
+          <div class="adsense-slot-box">
+            <ins class="adsbygoogle"
+                 style="display:block; min-height:90px;"
+                 data-ad-client="ca-pub-2387329460020928"
+                 data-ad-slot="auto"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>
+                 (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Physical STEM Toys Bridge Section -->
+    <section class="section section-alt" style="text-align: center;">
+      <div class="container">
+        <div class="section-header" style="margin-bottom: var(--space-6);">
+          <span class="badge">From Virtual to Real</span>
+          <h2>Bring Electronics Home to Real Life</h2>
+          <p class="section-description">Loved building circuits in KidtronLab? Explore our curated, age-appropriate physical electronics and robotics kits.</p>
+        </div>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+          <a href="index.html#age-6-8" class="btn btn-primary btn-lg">6–8 Years: Snap Circuits</a>
+          <a href="index.html#age-9-12" class="btn btn-secondary btn-lg">9–12 Years: Robotics & Making</a>
+          <a href="index.html#hobbies" class="btn btn-secondary btn-lg">15+ Electronics & Maker Hobbies</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================
+       FOOTER
+       ======================================================================== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-brand-header">
+            <img src="assets/brand/logo-badge.png" alt="HOBBY HAT Logo" class="footer-brand-logo" width="38" height="38">
+            <h3 class="footer-logo-title">HOBBY HAT</h3>
+          </div>
+          <p class="footer-tagline">The Hub of Hobbyists</p>
+          <p class="footer-desc">The Hub of Hobbyists — helping parents and young makers discover age-appropriate toys, learning products, and technical hobbies grounded in pediatric science.</p>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Age Stages</h4>
+          <ul class="footer-links">
+            <li><a href="index.html#age-0-1">0–1 Years (Infant)</a></li>
+            <li><a href="index.html#age-1-3">1–3 Years (Toddler)</a></li>
+            <li><a href="index.html#age-3-5">3–5 Years (Preschool)</a></li>
+            <li><a href="index.html#age-6-8">6–8 Years (Early STEM)</a></li>
+            <li><a href="index.html#age-9-12">9–12 Years (Inventors)</a></li>
+            <li><a href="index.html#age-13-15">13–15 Years (Builders)</a></li>
+            <li><a href="index.html#hobbies">15+ Lifelong Hobbies</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Explore</h4>
+          <ul class="footer-links">
+            <li><a href="index.html#catalog">Toy Catalog</a></li>
+            <li><a href="index.html#hobbies">Hobby Tracks</a></li>
+            <li><a href="index.html#science">Science of Play</a></li>
+            <li><a href="index.html#quiz">Smart Toy Quiz</a></li>
+            <li><a href="kidtronlab.html">KidtronLab (Game)</a></li>
+            <li><a href="about.html">About Hobby Hat</a></li>
+            <li><a href="contact.html">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Play Pillars</h4>
+          <ul class="footer-links">
+            <li><a href="index.html#science">Cognitive & Logic</a></li>
+            <li><a href="index.html#science">Fine & Gross Motor</a></li>
+            <li><a href="index.html#science">Sensory Integration</a></li>
+            <li><a href="index.html#science">STEAM & Spatial</a></li>
+            <li><a href="index.html#science">Social-Emotional</a></li>
+            <li><a href="index.html#science">Creative & Divergent</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>© 2026 HOBBY HAT. All rights reserved. Built with pediatric care. · <em>As an Amazon Associate I earn from qualifying purchases.</em></div>
+        <div style="display: flex; gap: 18px;">
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+          <a href="index.html">Home</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+  <script>
+    // Game Player Fullscreen & Reload Handlers
+    document.addEventListener('DOMContentLoaded', () => {
+      const fsBtn = document.getElementById('btn-fullscreen-player');
+      const reloadBtn = document.getElementById('btn-reload-player');
+      const frameWrapper = document.getElementById('game-frame-wrapper');
+      const gameFrame = document.getElementById('kidtron-game-frame');
+
+      if (fsBtn && frameWrapper) {
+        fsBtn.addEventListener('click', () => {
+          if (!document.fullscreenElement) {
+            if (frameWrapper.requestFullscreen) {
+              frameWrapper.requestFullscreen();
+            } else if (frameWrapper.webkitRequestFullscreen) {
+              frameWrapper.webkitRequestFullscreen();
+            } else if (frameWrapper.msRequestFullscreen) {
+              frameWrapper.msRequestFullscreen();
+            }
+          } else {
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            }
+          }
+        });
+      }
+
+      if (reloadBtn && gameFrame) {
+        reloadBtn.addEventListener('click', () => {
+          gameFrame.src = gameFrame.src;
+        });
+      }
+    });
+  </script>
+</body>
+</html>

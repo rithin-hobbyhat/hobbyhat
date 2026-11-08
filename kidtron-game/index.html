@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#090d16">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="x5-orientation" content="landscape">
+  <title>KidtronLab: Circuit Lab & Electronic Components Game</title>
+  <meta name="description" content="Interactive electronics circuit simulator and game for students to learn cells, connector wires, LEDs, incandescent bulbs, electric motors, and diodes.">
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2387329460020928"
+     crossorigin="anonymous"></script>
+</head>
+<body class="app-body">
+  <!-- Top Navigation Header -->
+  <!-- Top Navigation Header (Two Menubars on Mobile Phones) -->
+  <header class="app-header">
+    <!-- Top Menubar 1 (Upper Row: Studio Navigation, Modes, Level & Top Display Controls) -->
+    <div class="header-row header-row-top" id="header-row-top">
+      <div class="header-left">
+        <a href="../index.html" class="action-btn tool-btn back-to-hobbyhat" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.84rem; font-weight: 600; border-radius: 8px; background: rgba(255,255,255,0.08); color: #fff; margin-right: 8px; border: 1px solid rgba(255,255,255,0.15);" title="Back to HOBBY HAT Home">
+          <span>←</span>
+          <span>HOBBY HAT</span>
+        </a>
+        <div class="brand">
+          <div class="brand-icon">⚡</div>
+          <div class="brand-text">
+            <h1>Kidtron<span>Lab</span></h1>
+            <p class="tagline">Interactive Electronics Studio</p>
+          </div>
+        </div>
+
+        <!-- Top-Left Button: Info / Hide features around components -->
+        <button id="btn-student-view" class="topleft-student-btn action-btn tool-btn" title="Toggle component information and simplified student view">
+          <span class="icon" id="student-view-icon">ℹ️</span>
+          <span class="btn-label" id="student-view-label">Info</span>
+        </button>
+
+        <!-- Mode Switcher -->
+        <div class="mode-switcher">
+          <button id="mode-curriculum-btn" class="mode-tab active" title="Follow guided curriculum levels">
+            <span class="icon">🎯</span> <span class="mode-text">Challenges</span>
+          </button>
+          <button id="mode-sandbox-btn" class="mode-tab" title="Free exploration sandbox">
+            <span class="icon">🧪</span> <span class="mode-text">Free Sandbox</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Level Display -->
+      <div class="header-center" id="level-nav-container">
+        <div class="level-title-row">
+          <div class="level-badge" id="level-badge-display">Level 1 of 28</div>
+          <div class="level-title-display" id="level-title-display">The First Spark (Simple Bulb)</div>
+        </div>
+      </div>
+
+      <!-- Studio Quick Controls (Sound, Theme, Fullscreen) -->
+      <div class="header-top-controls">
+        <button id="btn-sound-toggle" class="action-btn tool-btn" title="Toggle Sound Effects">
+          <span class="icon" id="sound-icon">🔊</span>
+        </button>
+        <button id="btn-theme-toggle" class="action-btn tool-btn theme-toggle-btn" title="Toggle Day Mode / Dark Mode">
+          <span class="icon" id="theme-toggle-icon">☀️</span>
+          <span id="theme-toggle-label">Day Mode</span>
+        </button>
+        <button id="btn-fullscreen-toggle" class="action-btn tool-btn fullscreen-btn" title="Toggle Fullscreen Landscape Mode">
+          <span class="icon" id="fullscreen-icon">⛶</span>
+          <span class="btn-label" id="fullscreen-label">Fullscreen</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Top Menubar 2 (Lower Row: Circuit Actions & Educational Tools Toolbar) -->
+    <div class="header-row header-row-bottom" id="header-row-bottom">
+      <div class="header-right">
+        <!-- Educational & Diagnostic Tools (Left Side) -->
+        <div class="btn-group-row lab-group">
+          <button id="btn-hint" class="action-btn hint-btn" title="View educational hints and schematic guidance">
+            <span class="icon">💡</span><span class="btn-label">Hint</span>
+          </button>
+          <button id="btn-ohms-toggle" class="action-btn tool-btn" title="Open Ohm's Law & Power (Watts) Calculator">
+            <span class="icon">📐</span><span class="btn-label">Ohm's Law</span>
+          </button>
+          <button id="btn-resistor-codes" class="action-btn tool-btn" title="Standard Resistor Values & Color Code Chart (10Ω to 10MΩ)">
+            <span class="icon">🎨</span><span class="btn-label">Color Codes</span>
+          </button>
+          <button id="btn-logic-sim-toggle" class="action-btn tool-btn" title="Digital Logic Gate Simulator & Truth Table Lab">
+            <span class="icon">🔣</span><span class="btn-label">Logic Gates</span>
+          </button>
+          <button id="btn-analysis-toggle" class="action-btn tool-btn" title="Detailed Circuit Working Analysis (Volts, Current, Power)">
+            <span class="icon">📊</span><span class="btn-label">Analysis</span>
+          </button>
+          <button id="btn-multimeter-toggle" class="action-btn tool-btn" title="Toggle Digital Multimeter Probes">
+            <span class="icon">📟</span><span class="btn-label">Multimeter</span>
+          </button>
+        </div>
+
+        <span class="toolbar-separator"></span>
+
+        <!-- Simulation Flow Control -->
+        <div class="btn-group-row sim-group">
+          <button id="btn-xray-toggle" class="action-btn tool-btn active" title="Conventional Current Flow (Positive to Negative) / Electron Flow">
+            <span class="icon" id="flow-mode-icon">⚡</span>
+            <span class="btn-label" id="flow-mode-label">Current (+ → −)</span>
+          </button>
+        </div>
+
+        <span class="toolbar-separator"></span>
+
+        <!-- History & Circuit Actions (Right Side) -->
+        <div class="btn-group-row history-group">
+          <button id="btn-undo" class="action-btn tool-btn" title="Undo Last Action (Ctrl+Z)" disabled>
+            <span class="icon">↩️</span><span class="btn-label">Undo</span>
+          </button>
+          <button id="btn-redo" class="action-btn tool-btn" title="Redo Action (Ctrl+Y)" disabled>
+            <span class="icon">↪️</span><span class="btn-label">Redo</span>
+          </button>
+          <button id="btn-reset-level" class="action-btn secondary" title="Reset current circuit to level starting state">
+            <span class="icon">🔄</span><span class="btn-label">Reset</span>
+          </button>
+          <button id="btn-clear-canvas" class="action-btn danger" title="Clear all components and wires from the board">
+            <span class="icon">🗑️</span><span class="btn-label">Clear</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Workspace Layout -->
+  <main class="workbench-layout">
+    <!-- Left Component Toolbox Drawer -->
+    <aside class="toolbox-sidebar" id="toolbox-sidebar">
+      <div class="sidebar-section-title">
+        <span>Component Box</span>
+        <button id="btn-toolbox-close" class="toolbox-close-btn" title="Hide Component Box">✕</button>
+      </div>
+
+      <!-- Wire Tool & Color Palette -->
+      <div class="wire-palette-card">
+        <div class="wire-palette-header">
+          <span class="palette-title">Wire Color</span>
+          <span class="wire-tip">Click pins to connect</span>
+        </div>
+        <div class="color-swatches" id="color-swatches">
+          <button class="color-swatch active" data-color="#ff3b30" style="background: #ff3b30;" title="Positive / Red Wire"></button>
+          <button class="color-swatch" data-color="#0066cc" style="background: #0066cc;" title="Negative / Blue Wire"></button>
+          <button class="color-swatch" data-color="#30d158" style="background: #30d158;" title="Ground / Green Wire"></button>
+          <button class="color-swatch" data-color="#ffd60a" style="background: #ffd60a;" title="Signal / Yellow Wire"></button>
+          <button class="color-swatch" data-color="#334155" style="background: #1e293b;" title="Negative / Black Wire"></button>
+          <button class="color-swatch" data-color="#bf5af2" style="background: #bf5af2;" title="Control / Violet Wire"></button>
+        </div>
+      </div>
+
+      <!-- Components Catalog Grid -->
+      <div class="components-grid" id="components-catalog">
+        <!-- Dynamically injected components: Battery, Cell, Bulb, LED, Motor, Diode, Switch, Resistor, Buzzer -->
+      </div>
+
+      <!-- Quick Tips Box -->
+      <div class="guide-card">
+        <h4>⚡ Quick Lab Guide</h4>
+        <ul>
+          <li><strong>Connect:</strong> Click a glowing terminal ring and drag to another pin.</li>
+          <li><strong>Delete Wire:</strong> Click on any wire to snip it.</li>
+          <li><strong>Move Part:</strong> Click and drag the component body.</li>
+          <li><strong>Inspect:</strong> Click an LED to change its color or toggle blinking.</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Center Canvas / Circuit Workbench -->
+    <section class="circuit-stage" id="circuit-stage">
+      <!-- Scalable & Pannable Gaming Ground / Circuit World -->
+      <div class="workbench-world" id="workbench-world">
+        <!-- Grid Background Pattern -->
+        <div class="workbench-grid" id="workbench-grid"></div>
+
+        <!-- SVG Layer for Wires & Conventional Current Flow Particles (+ to -) -->
+        <svg class="wires-svg-layer" id="wires-layer">
+          <defs>
+            <!-- Neon wire glow filters -->
+            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <!-- Coin cell metallic brushed finish gradient -->
+            <linearGradient id="coin-metal-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f1f5f9"/>
+              <stop offset="35%" stop-color="#cbd5e1"/>
+              <stop offset="70%" stop-color="#94a3b8"/>
+              <stop offset="100%" stop-color="#e2e8f0"/>
+            </linearGradient>
+          </defs>
+          <!-- Wires will be rendered here -->
+          <g id="wires-group"></g>
+          <!-- Temp rubberband wire while dragging -->
+          <path id="temp-wire-path" class="temp-wire" d="" style="display: none;"></path>
+        </svg>
+
+        <!-- HTML Container for Draggable Electronic Components -->
+        <div class="components-container" id="components-container"></div>
+      </div>
+
+      <!-- Floating Gaming Ground Zoom HUD Controls -->
+      <div class="canvas-zoom-hud" id="canvas-zoom-hud" title="Circuit Stage Zoom Controls">
+        <button id="btn-zoom-in" class="zoom-hud-btn" type="button" title="Zoom In (+)">➕</button>
+        <button id="btn-zoom-reset" class="zoom-hud-btn zoom-hud-level" type="button" title="Reset Zoom (100%)">100%</button>
+        <button id="btn-zoom-out" class="zoom-hud-btn" type="button" title="Zoom Out (−)">➖</button>
+        <button id="btn-zoom-fit" class="zoom-hud-btn" type="button" title="Fit Circuit to View">🎯</button>
+      </div>
+
+      <!-- Multimeter Floating Rig (draggable or positioned) -->
+      <div class="multimeter-overlay" id="multimeter-rig" style="display: none;">
+        <!-- Flexible Test Lead Cords -->
+        <svg class="multimeter-cords-svg" id="multimeter-cords" width="100%" height="100%" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 41;">
+          <path id="cord-red-path" stroke="#ef4444" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8" />
+          <path id="cord-black-path" stroke="#334155" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8" />
+        </svg>
+        <div class="multimeter-unit" id="multimeter-unit">
+          <div class="mm-header">
+            <span class="mm-brand">⚡ DIGITAL MULTIMETER</span>
+            <button class="mm-close" id="btn-mm-close" title="Close Multimeter">✕</button>
+          </div>
+          <div class="mm-lcd">
+            <div class="mm-lcd-top">
+              <span class="mm-lcd-indicator" id="mm-mode-indicator">DC V</span>
+              <span class="mm-lcd-sub">AUTO-RANGE</span>
+            </div>
+            <span class="mm-lcd-value" id="mm-value-display">0.00 V</span>
+          </div>
+          <div class="mm-status" id="mm-status-display">Diagnostic Engine: Ready</div>
+
+          <!-- Function Mode Selector Buttons (All 6 Standard Diagnostic Functions) -->
+          <div class="mm-modes-grid" id="mm-modes-grid">
+            <button type="button" class="mm-mode-btn active" data-mode="dcv" id="mm-btn-dcv" title="DC Voltage (⎓V)">DC V</button>
+            <button type="button" class="mm-mode-btn" data-mode="acv" id="mm-btn-acv" title="AC Voltage (~V)">AC V</button>
+            <button type="button" class="mm-mode-btn" data-mode="dca" id="mm-btn-dca" title="DC Current in Milliamps (mA)">DC mA</button>
+            <button type="button" class="mm-mode-btn" data-mode="ohm" id="mm-btn-ohm" title="Resistance in Ohms (Ω)">Ω OHM</button>
+            <button type="button" class="mm-mode-btn" data-mode="cont" id="mm-btn-cont" title="Continuity Beeper with Audio (🔊)">🔊 CONT</button>
+            <button type="button" class="mm-mode-btn" data-mode="diode" id="mm-btn-diode" title="Diode & LED Forward Drop Test (▶|)">▶| DIODE</button>
+          </div>
+
+          <!-- Multimeter Terminal Jacks for Connecting Wires -->
+          <div class="mm-terminals-section">
+            <div class="mm-terminals-title">CONNECT WIRE TERMINALS</div>
+            <div class="mm-terminals-row">
+              <div class="mm-jack-wrapper">
+                <div class="terminal-pin mm-terminal-pin" id="pin-mm-vin" data-comp-id="multimeter_tool" data-pin-id="vin" data-polarity="pos" title="Connect Wire: V / Ω / mA (+ Input Jack)">
+                  <div class="terminal-pin-inner pin-pos"><span class="pin-sign">+</span></div>
+                </div>
+                <span class="mm-jack-caption">V · Ω · mA</span>
+              </div>
+              <div class="mm-jack-wrapper">
+                <div class="terminal-pin mm-terminal-pin" id="pin-mm-com" data-comp-id="multimeter_tool" data-pin-id="com" data-polarity="neg" title="Connect Wire: COM (- Common Ground Jack)">
+                  <div class="terminal-pin-inner pin-neg"><span class="pin-sign">-</span></div>
+                </div>
+                <span class="mm-jack-caption">COM</span>
+              </div>
+            </div>
+          </div>
+          <div class="mm-instructions">Connect wires to terminals OR drag red (+) & black (-) probes onto pins!</div>
+        </div>
+
+        <!-- Red Probe -->
+        <div class="multimeter-probe red-probe" id="probe-red" title="Positive Probe (+)">
+          <div class="probe-tip"></div>
+          <div class="probe-body">+ V</div>
+          <div class="probe-cord red-cord"></div>
+        </div>
+
+        <!-- Black Probe -->
+        <div class="multimeter-probe black-probe" id="probe-black" title="Negative Probe (-)">
+          <div class="probe-tip"></div>
+          <div class="probe-body">- COM</div>
+          <div class="probe-cord black-cord"></div>
+        </div>
+      </div>
+
+      <!-- Short Circuit Vision Hazard Warning Banner in Free Space -->
+      <div class="short-circuit-hazard-banner" id="short-hazard-banner" style="display: none;">
+        <div class="hazard-icon-pulse">⚡⚠️⚡</div>
+        <div class="hazard-banner-content">
+          <div class="hazard-banner-title">DANGER: SHORT CIRCUIT DETECTED!</div>
+          <div class="hazard-banner-desc">Zero-resistance loop bypassing loads! High current surge is overheating power source!</div>
+        </div>
+      </div>
+
+      <!-- Ohm's Law & Power (Watts) Draggable Floating Calculator Window -->
+      <div class="ohms-calc-window" id="ohms-calc-window" style="display: none;">
+        <!-- Draggable Title Bar / Header -->
+        <div class="ohms-header" id="ohms-drag-handle" title="Click and drag to move calculator anywhere on canvas">
+          <div class="ohms-title">
+            <span class="ohms-grip-icon" title="Drag Handle">⠿</span>
+            <span>📐 Ohm's Law Calculator</span>
+          </div>
+          <div class="ohms-header-actions">
+            <button class="ohms-close-btn" id="btn-ohms-close" title="Close Calculator">✕</button>
+          </div>
+        </div>
+
+        <!-- Mode Switcher Tabs -->
+        <div class="ohms-mode-tabs">
+          <button type="button" class="ohms-tab-btn active" id="tab-ohms-live">
+            <span>⚡ Live Circuit</span>
+          </button>
+          <button type="button" class="ohms-tab-btn" id="tab-ohms-gamer">
+            <span>🧮 Gamer Solver</span>
+          </button>
+          <button type="button" class="ohms-tab-btn" id="tab-ohms-resistor">
+            <span>🎨 Color Codes</span>
+          </button>
+        </div>
+
+        <!-- Panel 1: Live Circuit Telemetry -->
+        <div class="ohms-panel" id="panel-ohms-live">
+          <div class="ohms-metrics-grid">
+            <div class="ohms-metric-box">
+              <div class="ohms-metric-label">Voltage (V)</div>
+              <div class="ohms-metric-value" id="calc-v">0.00 V</div>
+            </div>
+            <div class="ohms-metric-box">
+              <div class="ohms-metric-label">Current (I)</div>
+              <div class="ohms-metric-value" id="calc-i">0.0 mA</div>
+            </div>
+            <div class="ohms-metric-box">
+              <div class="ohms-metric-label">Resistance (R)</div>
+              <div class="ohms-metric-value" id="calc-r">0 Ω</div>
+            </div>
+            <div class="ohms-metric-box">
+              <div class="ohms-metric-label">Power (Watts)</div>
+              <div class="ohms-metric-value" id="calc-p">0.0 mW</div>
+            </div>
+          </div>
+          <div class="ohms-formula-card" id="calc-formula-ohms">
+            <strong>Ohm's Law: V = I × R</strong>
+            <span id="calc-sub-ohms">Voltage = Current × Resistance</span>
+          </div>
+          <div class="ohms-formula-card" id="calc-formula-power" style="border-left-color: #f59e0b;">
+            <strong style="color: #fbbf24;">Joule's Power Law: P = V × I</strong>
+            <span id="calc-sub-power">Power (Watts) = Voltage × Current</span>
+          </div>
+          <div class="ohms-tip-text">
+            💡 Click any component on canvas to inspect live Ohm's law telemetry!
+          </div>
+        </div>
+
+        <!-- Panel 2: Gamer Interactive Calculator / Equation Solver -->
+        <div class="ohms-panel" id="panel-ohms-gamer" style="display: none;">
+          <div class="gamer-calc-subtitle">
+            Enter any <strong>two</strong> values to calculate the unknown quantity & power!
+          </div>
+
+          <div class="gamer-calc-inputs">
+            <!-- 1. Voltage Input -->
+            <div class="gamer-input-row">
+              <label class="gamer-input-label" for="gamer-calc-v">Voltage (V):</label>
+              <div class="gamer-input-wrap">
+                <input type="number" step="any" class="gamer-num-input" id="gamer-calc-v" placeholder="e.g. 9">
+                <span class="gamer-unit-tag">V</span>
+              </div>
+            </div>
+
+            <!-- 2. Current Input -->
+            <div class="gamer-input-row">
+              <label class="gamer-input-label" for="gamer-calc-i">Current (I):</label>
+              <div class="gamer-input-wrap">
+                <input type="number" step="any" class="gamer-num-input" id="gamer-calc-i" placeholder="e.g. 40">
+                <select class="gamer-unit-select" id="gamer-unit-i">
+                  <option value="mA" selected>mA</option>
+                  <option value="A">A</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 3. Resistance Input -->
+            <div class="gamer-input-row">
+              <label class="gamer-input-label" for="gamer-calc-r">Resistance (R):</label>
+              <div class="gamer-input-wrap">
+                <input type="number" step="any" class="gamer-num-input" id="gamer-calc-r" placeholder="e.g. 220">
+                <select class="gamer-unit-select" id="gamer-unit-r">
+                  <option value="Ω" selected>Ω</option>
+                  <option value="kΩ">kΩ</option>
+                  <option value="MΩ">MΩ</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="gamer-calc-actions">
+            <button type="button" class="gamer-btn gamer-btn-calc" id="btn-gamer-solve">⚡ Calculate Unknown</button>
+            <button type="button" class="gamer-btn gamer-btn-load" id="btn-gamer-load" title="Load live values from selected component">📥 Copy from Board</button>
+            <button type="button" class="gamer-btn gamer-btn-clear" id="btn-gamer-clear" title="Clear all inputs">🔄 Clear</button>
+          </div>
+
+          <!-- Step-by-Step Electrical Formula Breakdown -->
+          <div class="gamer-calc-result" id="gamer-calc-result" style="display: none;">
+            <div class="gamer-res-banner" id="gamer-res-banner">Solved: R = 225 Ω</div>
+            <div class="gamer-res-formula" id="gamer-res-steps">Formula breakdown...</div>
+            <div class="gamer-res-power" id="gamer-res-power">Power dissipation...</div>
+          </div>
+
+          <!-- Quick Scenario Presets -->
+          <div class="gamer-presets-row">
+            <span class="presets-label">Presets:</span>
+            <button type="button" class="preset-chip" data-v="9" data-r="220" data-ru="Ω">9V + 220Ω</button>
+            <button type="button" class="preset-chip" data-v="5" data-r="1000" data-ru="Ω">5V + 1kΩ</button>
+            <button type="button" class="preset-chip" data-v="12" data-r="80" data-ru="Ω">12V + 80Ω</button>
+            <button type="button" class="preset-chip" data-v="3" data-i="20" data-iu="mA">3V + 20mA</button>
+          </div>
+        </div>
+
+        <!-- Panel 3: Resistor Color Codes Quick Reference & Calculator -->
+        <div class="ohms-panel" id="panel-ohms-resistor" style="display: none;">
+          <div class="ohms-resistor-quick-preview">
+            <div class="ohms-res-badge-row">
+              <span class="ohms-res-title" id="ohms-res-cur-val">220 Ω (Fixed Resistor)</span>
+              <button type="button" class="ohms-open-full-btn" id="btn-ohms-open-full-resistor" title="Open Complete 54-Value Chart">
+                ↗ Full Table
+              </button>
+            </div>
+            <div class="ohms-res-stripes-row" id="ohms-res-stripes-display">
+              <!-- Rendered color stripes -->
+            </div>
+            <div class="ohms-res-code-desc" id="ohms-res-code-desc">
+              Red (2) • Red (2) • Brown (×10) • Gold (±5%)
+            </div>
+          </div>
+
+          <div class="ohms-res-quick-categories">
+            <div class="ohms-res-cat-title">Standard Resistance Values:</div>
+            <div class="ohms-res-chips-grid" id="ohms-res-chips-grid">
+              <!-- Quick standard value buttons -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Floating Circuit Status Ribbon -->
+      <div class="circuit-status-ribbon" id="circuit-status-ribbon">
+        <div class="status-indicator-dot open" id="status-dot"></div>
+        <div class="status-text-group">
+          <span class="status-headline" id="status-headline">Open Circuit</span>
+          <span class="status-detail" id="status-detail">Add wires to link positive and negative terminals.</span>
+        </div>
+        <div class="status-meter" id="status-meter">
+          <span class="meter-label">Output:</span>
+          <span class="meter-value" id="status-voltage">0.0 V</span>
+        </div>
+        <button id="btn-skip-task" class="skip-task-btn" title="Skip to the next challenge task" onclick="if(window.app) window.app.skipTask()">
+          <span class="skip-icon">⏭️</span> Skip Task
+        </button>
+      </div>
+
+      <!-- Drag-to-Delete Trash Bin Zone (bottom-right of circuit stage) -->
+      <div id="trash-drop-zone" class="trash-drop-zone" title="Drag a component here to delete it">
+        <div class="trash-bin-icon">🗑️</div>
+        <span class="trash-label">Drop to Delete</span>
+      </div>
+
+      <!-- Non-Intrusive Floating Victory Celebration Dock (Preserves complete vision of working circuit!) -->
+      <div id="victory-compact-dock" class="victory-compact-dock" style="display: none;">
+        <div class="v-dock-icon">🎉</div>
+        <div class="v-dock-info">
+          <span class="v-dock-title">Task Solved! Circuit Working!</span>
+          <span class="v-dock-sub" id="v-dock-level-name">Level 1: The First Spark</span>
+        </div>
+        <div class="v-dock-actions">
+          <button id="btn-dock-table" class="v-dock-btn secondary" title="Inspect detailed voltage, current, and Ohm's law table">📊 View Table</button>
+          <button id="btn-dock-next" class="v-dock-btn primary" title="Advance to the next challenge task" onclick="if(window.app) window.app.skipTask()">Next Task ➜</button>
+          <button id="btn-dock-close" class="v-dock-btn-close" title="Dismiss celebration">✕</button>
+        </div>
+      </div>
+
+      <!-- Floating Edge Toggle for Components Drawer (Mobile & Small Screens) -->
+      <button id="btn-edge-toolbox-toggle" class="edge-toolbox-toggle" title="Open Component Box">
+        <span class="edge-icon">🧰</span>
+        <span class="edge-label">Parts</span>
+      </button>
+
+      <!-- Floating Edge Toggle for Quick Access to Advanced Info -->
+      <button id="btn-edge-advanced-toggle" class="edge-sidebar-toggle" title="Click to show Advanced Information">
+        <span class="edge-icon">◀</span>
+        <span class="edge-label">🔬 Advanced</span>
+      </button>
+    </section>
+
+    <!-- Right Inspector / Educational Theory Sidebar (Default Collapsed for Fun Game Only) -->
+    <aside class="inspector-sidebar collapsed" id="inspector-sidebar">
+      <!-- Sidebar Top Bar with Title and Close Button -->
+      <div class="sidebar-top-bar">
+        <div class="sidebar-top-title">
+          <span class="icon">🔬</span>
+          <span>Advanced Info</span>
+        </div>
+        <button id="btn-sidebar-close" class="sidebar-close-btn" title="Hide Advanced Info (Pure Game Mode)">✕</button>
+      </div>
+      <!-- Level Objective Card -->
+      <div class="sidebar-card objective-card" id="objective-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <div class="card-tag" style="margin-bottom: 0;">MISSION OBJECTIVE</div>
+          <button id="btn-skip-task-sidebar" class="sidebar-skip-btn" title="Skip to the next challenge task" onclick="if(window.app) window.app.skipTask()">⏭️ Skip</button>
+        </div>
+        <h3 id="sidebar-level-title">The First Spark</h3>
+        <p id="sidebar-level-desc">Complete a closed electric loop to light up the incandescent bulb.</p>
+        <div class="task-checklist" id="task-checklist">
+          <!-- Dynamically generated goal checks -->
+        </div>
+      </div>
+
+      <!-- Selected Component Inspector -->
+      <div class="sidebar-card inspector-card" id="component-inspector" style="display: none;">
+        <div class="card-tag">COMPONENT PROPERTIES</div>
+        <div class="inspector-header">
+          <div class="comp-icon-preview" id="insp-icon">💡</div>
+          <div>
+            <h4 id="insp-name">Component Name</h4>
+            <span class="comp-type-tag" id="insp-type">Load</span>
+          </div>
+        </div>
+        <p class="insp-desc" id="insp-desc">Component description and physics behavior.</p>
+
+        <!-- Component Engineering Specifications Sidebar Card -->
+        <div class="character-story-card tech-specs-sidebar-card" id="insp-character-story-box">
+          <div class="char-story-header">
+            <span class="char-story-badge" id="insp-char-badge">TECHNICAL SPECIFICATIONS</span>
+            <button type="button" class="char-story-speak-btn" id="btn-insp-speak-story" title="View Full Technical Specifications Data Sheet">
+              <span>⚙️ Full Specs</span>
+            </button>
+          </div>
+          <div class="char-superpower-box" id="insp-char-superpower">
+            <strong>Electrical Function:</strong> <span id="insp-char-superpower-text"></span>
+          </div>
+          <div class="char-story-text" id="insp-char-story-text">
+            Engineering specifications & parameters...
+          </div>
+          <div class="char-specs-grid">
+            <div class="char-spec-item">
+              <span class="char-spec-label">⚡ Rated Working Voltage:</span>
+              <span class="char-spec-val" id="insp-char-rated"></span>
+            </div>
+            <div class="char-spec-item">
+              <span class="char-spec-label">🔋 Circuit Application:</span>
+              <span class="char-spec-val" id="insp-char-ideal"></span>
+            </div>
+            <div class="char-spec-item">
+              <span class="char-spec-label">📐 Governing Formula:</span>
+              <span class="char-spec-val" id="insp-char-importance"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Controls (e.g. LED color, Blinking toggle, Motor direction) -->
+        <div class="insp-controls" id="insp-controls">
+          <!-- Populated when component is clicked -->
+        </div>
+
+        <!-- Replace / Swap Component Controls -->
+        <div class="replace-swap-group">
+          <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Swap with Another Component:</label>
+          <select id="insp-replace-select" class="replace-dropdown">
+            <option value="battery">9V Battery</option>
+            <option value="cell">1.5V Cell</option>
+            <option value="cell3v">3V Coin Cell (CR2032)</option>
+            <option value="led">LED (Light Emitting Diode)</option>
+            <option value="bulb">Incandescent Bulb</option>
+            <option value="motor">DC Electric Motor</option>
+            <option value="diode">Semiconductor Diode</option>
+            <option value="switch">Single Pole Switch (SPST)</option>
+            <option value="twowayswitch">Two-Way Switch (SPDT)</option>
+            <option value="resistor">Fixed Resistor</option>
+            <option value="potentiometer">Variable Resistor (Potentiometer)</option>
+            <option value="transformer">Step-Down Transformer</option>
+            <option value="ac_source">AC Voltage Supply</option>
+            <option value="buzzer">Electronic Buzzer</option>
+            <option value="npn">NPN Transistor</option>
+            <option value="pnp">PNP Transistor</option>
+            <option value="ldr">LDR (Photoresistor)</option>
+            <option value="solenoid">Solenoid (Electromagnet)</option>
+            <option value="rectifier">Full-Wave Bridge Rectifier</option>
+            <option value="inductor">Power Inductor (Choke)</option>
+            <option value="ammeter">Ammeter (Current)</option>
+            <option value="voltmeter">Voltmeter (Voltage)</option>
+            <option value="wattmeter">Wattmeter (Power)</option>
+            <option value="power_supply">Regulated DC Power Supply (0-50V, 5A)</option>
+            <option value="fuse">Protective Glass Fuse (Adjustable)</option>
+            <option value="function_generator">Function Generator (Arbitrary Signal Gen)</option>
+            <option value="oscilloscope">Digital Storage Oscilloscope (Dual-Channel DSO)</option>
+            <optgroup label="Digital Logic Gates">
+              <option value="gate_and">AND Gate</option>
+              <option value="gate_or">OR Gate</option>
+              <option value="gate_not">NOT Gate</option>
+              <option value="gate_nand">NAND Gate</option>
+              <option value="gate_nor">NOR Gate</option>
+              <option value="gate_xor">XOR Gate</option>
+              <option value="gate_xnor">XNOR Gate</option>
+            </optgroup>
+          </select>
+          <button id="btn-replace-selected" class="btn-replace-comp">
+            <span>🔄 Replace Component</span>
+          </button>
+          <button id="btn-repair-selected" class="btn-replace-comp btn-repair-burnt" style="display: none;">
+            <span>✨ Repair / Replace Burnt</span>
+          </button>
+        </div>
+
+        <button id="btn-delete-selected" class="delete-comp-btn" style="margin-top: 10px;">
+          <span>🗑️ Remove Component</span>
+        </button>
+      </div>
+
+      <!-- Charge Conduction & Flow Mode Selector Card -->
+      <div class="sidebar-card flow-selector-card" id="flow-selector-card">
+        <div class="card-tag">CHARGE FLOW VISUALIZATION</div>
+        <div class="flow-pill-selector">
+          <button id="pill-flow-conventional" class="flow-pill-btn active" data-flow-mode="conventional" title="Benjamin Franklin convention: Positive (+) to Negative (−)">
+            ⚡ Conventional (+ → −)
+          </button>
+          <button id="pill-flow-electrons" class="flow-pill-btn" data-flow-mode="electrons" title="Physical Electron Drift: Negative (−) to Positive (+)">
+            ⚛️ Real Electrons (− → +)
+          </button>
+          <button id="pill-flow-off" class="flow-pill-btn" data-flow-mode="off" title="Pause flow animation">
+            ⏸️ Off
+          </button>
+        </div>
+        <div class="flow-theory-note" id="flow-theory-note">
+          <strong>⚡ Conventional Current:</strong> Assumes positive charges flow from (+) out through the load and into (−). Used on all electronic schematics and semiconductor symbols.
+        </div>
+      </div>
+
+      <!-- Physics & Electronics Theory Card -->
+      <div class="sidebar-card theory-card">
+        <div class="card-tag">PHYSICS BRIEFING</div>
+        <h4 id="theory-title">How Circuits Work</h4>
+        <p id="theory-content">
+          Electricity is the motion of electrical charge carried by electrons. In a direct current (DC) system, a battery provides an electromotive force (voltage) pushing electrons through conductive wires to do work in loads like bulbs, LEDs, or motors.
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Burning Countdown Toast Overlay -->
+  <div class="burn-countdown-toast" id="burn-countdown-toast" style="display: none;">
+    <div class="burn-toast-title">
+      <span>🔥</span>
+      <span id="burn-toast-component-title">COMPONENT OVERHEATING & BURNING!</span>
+    </div>
+    <div class="burn-toast-desc" id="burn-toast-desc">
+      Excessive voltage or current is flowing through the component! Watch it smoke and burn...
+    </div>
+    <div class="burn-progress-bar-container">
+      <div class="burn-progress-bar" id="burn-progress-bar"></div>
+    </div>
+  </div>
+
+  <!-- Circuit Failed & Diagnostic Explanation Modal -->
+  <div class="modal-backdrop" id="failure-modal" style="display: none;">
+    <div class="modal-card circuit-failed-card">
+      <div class="modal-close" id="btn-close-failure-modal" title="Close & Inspect">✕</div>
+      <div class="circuit-failed-header-row">
+        <div class="circuit-failed-header-icon" id="fault-icon">💥</div>
+        <div>
+          <div class="fault-culprit-pill" id="fault-culprit-pill">FAULT DETECTED</div>
+          <h2 id="fault-modal-title">CIRCUIT FAILED!</h2>
+          <p class="fault-subtitle" id="fault-subtitle">Component Breakdown & Electrical Engineering Diagnostic</p>
+        </div>
+      </div>
+
+      <!-- Scrollable Diagnostic Body -->
+      <div class="fault-diagnostic-body">
+        <!-- 1. The Fault Summary -->
+        <div class="diagnostic-box fault-summary-box">
+          <div class="diagnostic-label">🔍 IDENTIFIED FAULT</div>
+          <div class="diagnostic-value highlight-red" id="fault-reason-text">An overvoltage was applied beyond safe component tolerances.</div>
+        </div>
+
+        <!-- 2. Why This Happened (Physics & Electron Drift) -->
+        <div class="diagnostic-box fault-why-box">
+          <div class="diagnostic-label">⚡ WHY THIS HAPPENED (Physical & Electron Explanation)</div>
+          <div class="diagnostic-value" id="fault-why-text">Excessive potential difference forced a destructive avalanche of electrons through the component...</div>
+        </div>
+
+        <!-- 3. Recommended Step-by-Step Remedy -->
+        <div class="diagnostic-box fault-remedy-box">
+          <div class="diagnostic-label">🛠️ RECOMMENDED REMEDY (How to Fix It)</div>
+          <div class="diagnostic-value" id="fault-remedy-text">Insert a current-limiting resistor between the battery and component...</div>
+        </div>
+
+        <!-- 4. Electrical Engineering Principle & Mathematical Equation -->
+        <div class="diagnostic-box fault-principle-box">
+          <div class="diagnostic-label">📐 ELECTRICAL ENGINEERING PRINCIPLE</div>
+          <div class="fault-principle-title" id="fault-principle-title">Ohm's Law & Joule's Heating Law</div>
+          <div class="fault-equation-badge" id="fault-equation-badge">P = I² × R (Excessive Power Dissipation)</div>
+        </div>
+
+      </div>
+
+      <!-- Action Footer -->
+      <div class="modal-actions failure-modal-actions">
+        <button id="btn-replace-failed-comp" class="modal-btn primary">
+          🔄 Replace Burnt Component
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Completed Victory Celebration & Circuit Working Analysis Modal -->
+  <div class="modal-backdrop" id="victory-modal" style="display: none;">
+    <div class="modal-card victory-card">
+      <div class="modal-close-group" style="position: absolute; top: 14px; right: 16px; display: flex; align-items: center; gap: 8px;">
+        <button id="btn-minimize-victory" class="victory-minimize-pill-btn" title="Minimize table and see working circuit">👁️ See Circuit</button>
+        <div class="modal-close" id="btn-close-victory" title="Close & Inspect Workbench" style="position: static;">✕</div>
+      </div>
+      <div class="victory-header-row">
+        <div class="victory-header-art">🎉</div>
+        <div>
+          <div class="stars-row">
+            <span class="star">★</span>
+            <span class="star">★</span>
+            <span class="star">★</span>
+          </div>
+          <h2 id="victory-main-title">Circuit Connected Correctly!</h2>
+          <p class="victory-level-subtitle" id="victory-level-name">Level 1: The First Spark</p>
+        </div>
+      </div>
+
+      <!-- Appreciation Banner -->
+      <div class="victory-appreciation-box" id="victory-appreciation">
+        <span class="appreciation-icon">🌟</span>
+        <div class="appreciation-text" id="victory-appreciation-text">
+          Outstanding engineering! You established a safe, closed loop that delivers power with balanced current and voltage.
+        </div>
+      </div>
+
+      <!-- Live Circuit Working Telemetry & Analysis Section -->
+      <div class="circuit-analysis-container" id="circuit-analysis-container">
+        <div class="analysis-section-title">
+          <span>⚡ Live Working Circuit Analysis</span>
+          <span class="analysis-circuit-type-badge" id="analysis-circuit-type">Series Circuit</span>
+        </div>
+
+        <!-- Macro Metrics Grid (Voltage, Current, Power, Resistance) -->
+        <div class="analysis-metrics-grid">
+          <div class="analysis-metric-card">
+            <div class="metric-icon">🔋</div>
+            <div class="metric-label">Supply Voltage</div>
+            <div class="metric-val" id="analysis-v-total">0.00 V</div>
+            <div class="metric-sub">Total Source Potential</div>
+          </div>
+          <div class="analysis-metric-card">
+            <div class="metric-icon">🌊</div>
+            <div class="metric-label">Loop Current</div>
+            <div class="metric-val" id="analysis-i-total">0.0 mA</div>
+            <div class="metric-sub">Electron Flow Rate</div>
+          </div>
+          <div class="analysis-metric-card">
+            <div class="metric-icon">⚡</div>
+            <div class="metric-label">Power Consumed</div>
+            <div class="metric-val" id="analysis-p-total">0.0 mW</div>
+            <div class="metric-sub">P = V × I Dissipated</div>
+          </div>
+          <div class="analysis-metric-card">
+            <div class="metric-icon">📐</div>
+            <div class="metric-label">Circuit Resistance</div>
+            <div class="metric-val" id="analysis-r-total">0.0 Ω</div>
+            <div class="metric-sub">R = V / I Equivalent</div>
+          </div>
+        </div>
+
+        <!-- Detailed Per-Component Electrical Breakdown -->
+        <div class="analysis-section-title" style="margin-top: 14px;">
+          <span>🔍 Component-by-Component Working Breakdown</span>
+        </div>
+        <div class="analysis-components-table" id="analysis-components-list">
+          <!-- Dynamically populated by JS -->
+        </div>
+
+        <!-- Educational Physics & Working Principle -->
+        <div class="victory-explanation" id="victory-theory">
+          <strong>Scientific Principle:</strong> You established a closed path with zero breaks. Electrons can flow freely from the battery's chemical potential, heating the filament to produce bright radiant light!
+        </div>
+      </div>
+
+      <!-- Actions: Next Task, Inspect Workbench, Replay -->
+      <div class="modal-actions victory-actions">
+        <button id="btn-replay-level" class="modal-btn secondary" title="Replay this level from start">🔄 Replay Task</button>
+        <button id="btn-inspect-workbench" class="modal-btn secondary" title="Keep inspecting the live running circuit">🔬 Inspect Workbench</button>
+        <button id="btn-next-level" class="modal-btn primary victory-next-btn" title="Advance to the next task" onclick="if(window.app) window.app.skipTask()">
+          <span id="next-task-btn-text">Next Task ➜</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hint Modal Dialog -->
+  <div class="modal-backdrop" id="hint-modal" style="display: none;">
+    <div class="modal-card hint-card">
+      <div class="modal-close" id="btn-close-hint">✕</div>
+      <div class="card-tag">CIRCUIT LAB HINT</div>
+      <h3 id="hint-modal-title">Level Guidance</h3>
+      <div class="hint-body" id="hint-modal-content">
+        <!-- Injected guidance -->
+      </div>
+      <div class="modal-actions">
+        <button id="btn-got-it" class="modal-btn primary">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Standard Resistor Values & EIA Color Code Reference Modal -->
+  <div class="modal-backdrop" id="resistor-codes-modal" style="display: none;">
+    <div class="modal-card resistor-codes-card">
+      <div class="modal-close" id="btn-close-resistor-codes" title="Close Guide">✕</div>
+      
+      <div class="resistor-codes-header-row">
+        <div class="resistor-codes-icon">🎨</div>
+        <div style="flex: 1;">
+          <div class="card-tag">ELECTRONICS REFERENCE GUIDE</div>
+          <h3 class="resistor-codes-title">Standard Resistor Values & Color Codes</h3>
+          <p class="resistor-codes-subtitle">All 54 standard EIA preferred resistance values (10 Ω to 10 MΩ) with authentic 4-band color code stripes & tolerance.</p>
+        </div>
+      </div>
+
+      <!-- Quick Interactive Resistor Color Code Tester / Decoder -->
+      <div class="resistor-decoder-workbench">
+        <div class="decoder-preview-box">
+          <div class="decoder-svg-wrapper" id="decoder-resistor-svg">
+            <!-- Dynamic SVG Resistor Graphic -->
+          </div>
+          <div class="decoder-values-display">
+            <div class="decoder-main-val" id="decoder-val-text">220 Ω</div>
+            <div class="decoder-sub-code" id="decoder-code-text">Red • Red • Brown • Gold (±5%)</div>
+            <div class="decoder-tolerance-text" id="decoder-tol-text">Safe Range: 209 Ω – 231 Ω</div>
+          </div>
+        </div>
+
+        <!-- 4-Band Interactive Pickers -->
+        <div class="decoder-selectors-grid">
+          <div class="decoder-selector-group">
+            <label>1st Digit (Band 1)</label>
+            <select id="decoder-band-1" class="decoder-select"></select>
+          </div>
+          <div class="decoder-selector-group">
+            <label>2nd Digit (Band 2)</label>
+            <select id="decoder-band-2" class="decoder-select"></select>
+          </div>
+          <div class="decoder-selector-group">
+            <label>Multiplier (Band 3)</label>
+            <select id="decoder-band-3" class="decoder-select"></select>
+          </div>
+          <div class="decoder-selector-group">
+            <label>Tolerance (Band 4)</label>
+            <select id="decoder-band-4" class="decoder-select" disabled>
+              <option value="gold" selected>Gold (±5%)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mnemonic Cheat Ribbon for Students -->
+      <div class="resistor-mnemonic-bar">
+        <div class="mnemonic-title">💡 Color Mnemonic:</div>
+        <div class="mnemonic-text"><strong>B</strong>lack(0) <strong>B</strong>rown(1) <strong>R</strong>ed(2) <strong>O</strong>range(3) <strong>Y</strong>ellow(4) <strong>G</strong>reen(5) <strong>B</strong>lue(6) <strong>V</strong>iolet(7) <strong>G</strong>ray(8) <strong>W</strong>hite(9)</div>
+      </div>
+
+      <!-- Category Filter Tabs & Search -->
+      <div class="resistor-table-toolbar">
+        <div class="resistor-category-pills" id="resistor-cat-pills">
+          <button type="button" class="res-cat-btn active" data-cat="all">All Values (54)</button>
+          <button type="button" class="res-cat-btn" data-cat="ohms">Ohms (10–82Ω)</button>
+          <button type="button" class="res-cat-btn" data-cat="hundreds">Hundreds (100–820Ω)</button>
+          <button type="button" class="res-cat-btn" data-cat="kilohms">kΩ (1k–8.2kΩ)</button>
+          <button type="button" class="res-cat-btn" data-cat="tens_kilohms">Tens of kΩ (10k–82kΩ)</button>
+          <button type="button" class="res-cat-btn" data-cat="hundreds_k_megohms">MΩ (100k–10MΩ)</button>
+        </div>
+        <div class="resistor-search-box">
+          <input type="text" id="resistor-search-input" placeholder="🔍 Search resistance (e.g. 470, 4.7k, yellow)..." autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Resistor Standard Values Cards Grid -->
+      <div class="resistor-values-container" id="resistor-values-container">
+        <!-- Dynamically rendered standard resistor cards grouped by category -->
+      </div>
+
+      <div class="modal-actions" style="margin-top: 18px; justify-content: space-between;">
+        <div class="modal-note-left" id="resistor-modal-target-notice">
+          💡 Click <strong>"Apply to Resistor"</strong> on any card to update the selected component on your board!
+        </div>
+        <button id="btn-close-resistor-codes-bottom" class="modal-btn secondary">Close Guide</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Component Technical Specifications Data Sheet Modal (Triggered by Right-Click) -->
+  <div class="modal-backdrop" id="tech-specs-modal" style="display: none;">
+    <div class="modal-card tech-specs-card">
+      <div class="modal-close" id="btn-close-tech-specs-modal" title="Close Specifications (Esc)">✕</div>
+      
+      <!-- Header Row: Symbol / Avatar, Component Name, Badges -->
+      <div class="tech-specs-header-row">
+        <div class="tech-specs-icon-box" id="tech-specs-icon">⚙️</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap;">
+            <span class="tech-specs-category-pill" id="tech-specs-category-pill">PASSIVE LOAD</span>
+            <span class="tech-specs-status-pill" id="tech-specs-status-pill">● ACTIVE / NORMAL</span>
+            <span class="tech-specs-iec-pill" id="tech-specs-iec-pill">IEC 60062 / JEDEC</span>
+          </div>
+          <h2 id="tech-specs-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.3px;">
+            Component Technical Specifications
+          </h2>
+          <p class="tech-specs-subtitle" id="tech-specs-subtitle" style="margin: 2px 0 0 0; font-size: 0.78rem; color: #94a3b8;">
+            Electrical Engineering Data Sheet & Real-Time Circuit Telemetry
+          </p>
+        </div>
+      </div>
+
+      <!-- Scrollable Specifications Body -->
+      <div class="tech-specs-modal-body" id="tech-specs-body">
+        <!-- Section 1: Absolute Maximum Ratings & Specifications -->
+        <div class="tech-specs-section">
+          <div class="tech-specs-section-title">
+            <span>⚡ ABSOLUTE MAXIMUM RATINGS & ENGINEERING LIMITS</span>
+          </div>
+          <div class="tech-specs-grid" id="tech-specs-ratings-grid">
+            <!-- Dynamically populated: Ratings table -->
+          </div>
+        </div>
+
+        <!-- Section 2: Real-Time Circuit Telemetry -->
+        <div class="tech-specs-section">
+          <div class="tech-specs-section-title">
+            <span>📊 REAL-TIME CIRCUIT TELEMETRY (LIVE MEASUREMENTS)</span>
+          </div>
+          <div class="tech-specs-telemetry-grid" id="tech-specs-telemetry-grid">
+            <!-- Dynamically populated: Voltage Drop, Branch Current, Power, Temperature, etc. -->
+          </div>
+        </div>
+
+        <!-- Section 3: Operating Physics, Governing Laws & Formulas -->
+        <div class="tech-specs-section">
+          <div class="tech-specs-section-title">
+            <span>📐 OPERATING PRINCIPLE & GOVERNING FORMULAS</span>
+          </div>
+          <div class="tech-specs-formula-box" id="tech-specs-formula-box">
+            <!-- Dynamic formulas with KaTeX notation & explanation -->
+          </div>
+        </div>
+
+        <!-- Section 4: Orientation, Size & Pin Terminal Connections -->
+        <div class="tech-specs-section">
+          <div class="tech-specs-section-title">
+            <span>🎛️ COMPONENT GEOMETRY & INTERACTIVE CONTROLS</span>
+          </div>
+          <div class="tech-specs-geometry-row" id="tech-specs-geometry-row">
+            <!-- Rotation controls, Scale/Size controls, and Pin map -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Actions Footer -->
+      <div class="modal-actions tech-specs-modal-actions" style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
+        <div style="font-size: 0.73rem; color: #64748b;" id="tech-specs-footer-tip">
+          💡 Right-click any component for specifications • Drag top handle to rotate • Drag corner handle to resize.
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-tech-specs-rotate" class="modal-btn secondary" type="button" title="Rotate +90°">
+            ↻ Rotate 90°
+          </button>
+          <button id="btn-tech-specs-close" class="modal-btn primary" type="button">
+            Close Specs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Digital Logic Gate Simulator & Truth Table Lab Modal -->
+  <div class="modal-backdrop" id="logic-sim-modal" style="display: none;">
+    <div class="modal-card logic-sim-card">
+      <div class="modal-close" id="btn-close-logic-sim" title="Close Logic Simulator (Esc)">✕</div>
+      
+      <div class="logic-sim-header-row">
+        <div class="logic-sim-header-icon">🔣</div>
+        <div>
+          <h2>Digital Logic Gate Simulator & Truth Table Lab</h2>
+          <p class="logic-sim-subtitle">Interactive 74HC CMOS / TTL Logic Family Exploration with Live Boolean Verification</p>
+        </div>
+      </div>
+
+      <!-- Gate Selector Tabs -->
+      <div class="logic-gate-tabs" id="logic-gate-tabs">
+        <button class="gate-tab-btn active" data-gate="gate_and">AND Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_or">OR Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_not">NOT Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_nand">NAND Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_nor">NOR Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_xor">XOR Gate</button>
+        <button class="gate-tab-btn" data-gate="gate_xnor">XNOR Gate</button>
+      </div>
+
+      <!-- Main Interactive Lab Layout -->
+      <div class="logic-sim-body">
+        <!-- Left Column: Interactive Schematic Canvas & Gate Diagram -->
+        <div class="logic-sim-schematic-col">
+          <div class="logic-sim-section-title">
+            <span>⚡ LIVE INTERACTIVE SCHEMATIC</span>
+            <span class="logic-sim-eq-badge" id="logic-sim-eq">X = A · B</span>
+          </div>
+          <div class="logic-sim-canvas-box" id="logic-sim-canvas-box">
+            <!-- Dynamically updated SVG schematic with interactive toggle buttons & animated glow output -->
+          </div>
+          <div class="logic-sim-description-box" id="logic-sim-desc">
+            Output is at logic 1 when, and only when all its inputs are at logic 1, otherwise the output is at logic 0.
+          </div>
+        </div>
+
+        <!-- Right Column: Live Dynamic Truth Table & 74xx Technical Specifications -->
+        <div class="logic-sim-data-col">
+          <div class="logic-sim-section-title">
+            <span>📋 REAL-TIME TRUTH TABLE</span>
+            <span style="font-size: 0.72rem; color: #94a3b8;">Click any row to test</span>
+          </div>
+          <div class="logic-sim-table-wrap">
+            <table class="logic-truth-table" id="logic-truth-table">
+              <!-- Dynamic rows with active row highlight -->
+            </table>
+          </div>
+
+          <div class="logic-sim-section-title" style="margin-top: 14px;">
+            <span>🔬 74HC IC TECHNICAL SPECIFICATIONS</span>
+          </div>
+          <div class="logic-ic-specs-box" id="logic-ic-specs-box">
+            <!-- Parametric specs -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer Actions -->
+      <div class="modal-actions logic-sim-actions" style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
+        <button id="btn-spawn-logic-gate" class="modal-btn primary" type="button">
+          <span>➕ Spawn Gate on Workbench</span>
+        </button>
+        <button id="btn-close-logic-sim-bottom" class="modal-btn secondary" type="button">
+          <span>Close Simulator</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Landscape Orientation Enforcer & Recommendation Overlay -->
+  <div id="rotate-device-overlay" class="rotate-device-overlay" role="dialog" aria-modal="true" aria-label="Rotate Device to Landscape">
+    <div class="rotate-card">
+      <div class="rotate-device-anim">
+        <div class="rotate-phone">
+          <div class="rotate-phone-screen">
+            <span class="rotate-bolt">⚡</span>
+          </div>
+        </div>
+        <div class="rotate-arrow-badge">↻</div>
+      </div>
+      <h2>Rotate to Landscape</h2>
+      <p>KidtronLab is engineered to run <strong>horizontally in landscape mode</strong> for the best electronic breadboard & circuit simulation experience.</p>
+      <div class="rotate-actions">
+        <button id="btn-rotate-fullscreen" class="rotate-action-btn primary" type="button">
+          <span>⛶</span> Play Fullscreen (Landscape)
+        </button>
+        <button id="btn-rotate-dismiss" class="rotate-action-btn secondary" type="button">
+          Continue in Portrait
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confetti Canvas overlay for celebrations -->
+  <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
+
+  <!-- Load Scripts in logical dependency order -->
+  <script src="assets/battery9v_data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/circuit.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
