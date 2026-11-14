@@ -72,6 +72,10 @@ class CircuitSolver {
         const throwPin = (comp.state.position === 2) ? 'l2' : 'l1';
         union(`${comp.id}:com`, `${comp.id}:${throwPin}`);
       }
+      if (comp.type === 'relay' && !comp.state.burnt) {
+        const contactPin = comp.state.energized ? 'no' : 'nc';
+        union(`${comp.id}:com`, `${comp.id}:${contactPin}`);
+      }
       if (comp.type === 'multimeter' && comp.state.mode === 'dca' && !comp.state.burnt) {
         union(`${comp.id}:vin`, `${comp.id}:com`);
       }
@@ -125,7 +129,7 @@ class CircuitSolver {
           checkAdd(p1, pw); checkAdd(pw, p1);
           checkAdd(pw, p2); checkAdd(p2, pw);
           checkAdd(p1, p2); checkAdd(p2, p1);
-        } else if (comp.type === 'resistor' || comp.type === 'ldr') {
+        } else if (comp.type === 'resistor' || comp.type === 'ldr' || comp.type === 'ammeter' || comp.type === 'fuse') {
           const pinA = find(`${comp.id}:${comp.terminals[0].id}`);
           const pinB = find(`${comp.id}:${comp.terminals[1].id}`);
           if (pinA === cur && !visited.has(pinB)) {
@@ -168,7 +172,7 @@ class CircuitSolver {
           checkAdd(p1, pw); checkAdd(pw, p1);
           checkAdd(pw, p2); checkAdd(p2, pw);
           checkAdd(p1, p2); checkAdd(p2, p1);
-        } else if (comp.type === 'resistor' || comp.type === 'ldr') {
+        } else if (comp.type === 'resistor' || comp.type === 'ldr' || comp.type === 'ammeter' || comp.type === 'fuse') {
           const pinA = find(`${comp.id}:${comp.terminals[0].id}`);
           const pinB = find(`${comp.id}:${comp.terminals[1].id}`);
           if (pinA === cur && !visited.has(pinB)) {
@@ -230,10 +234,10 @@ class CircuitSolver {
         // Pin 1 to Pin 2 (R_total)
         addBranch(net1, net2, totalR);
         addBranch(net2, net1, totalR);
-      } else if (comp.type === 'resistor' || comp.type === 'ldr') {
+      } else if (comp.type === 'resistor' || comp.type === 'ldr' || comp.type === 'ammeter' || comp.type === 'fuse') {
         const pinA = find(`${comp.id}:${comp.terminals[0].id}`);
         const pinB = find(`${comp.id}:${comp.terminals[1].id}`);
-        const r = Math.max(0.01, comp.state.resistance !== undefined ? comp.state.resistance : 100);
+        const r = (comp.type === 'ammeter' || comp.type === 'fuse') ? 0.01 : Math.max(0.01, comp.state.resistance !== undefined ? comp.state.resistance : 100);
         const g = 1.0 / r;
 
         if (pinA === targetNet) {
@@ -246,6 +250,16 @@ class CircuitSolver {
           else if (isNeg(pinA)) gNeg += g;
           else if (this.isNetConnectedToPositive(pinA, posRoots, find, comp.id)) gPos += g;
           else if (this.isNetConnectedToNegative(pinA, negRoots, find, comp.id)) gNeg += g;
+        }
+      } else if (comp.type && comp.type.startsWith('gate_')) {
+        // Logic gate inputs feature high-impedance internal pull-downs (~8kΩ) to Ground (logic LOW default)
+        for (const term of (comp.terminals || [])) {
+          if (term.polarity === 'logic_in') {
+            const netIn = find(`${comp.id}:${term.id}`);
+            if (netIn === targetNet) {
+              gNeg += 1.0 / 8000.0;
+            }
+          }
         }
       }
     }
@@ -327,6 +341,124 @@ class CircuitSolver {
     return this.getNetThevenin(targetNet, posRoots, negRoots, totalVoltage, find).vTh;
   }
 
+  evaluateTransistorBias(find, allPosRoots, allNegRoots, sysVolt) {
+    let transistorFlipped = false;
+    for (const comp of this.components) {
+      if (comp.state.burnt) continue;
+      if (comp.type === 'npn') {
+        const bRoot = find(`${comp.id}:b`);
+        const eRoot = find(`${comp.id}:e`);
+        const wasConducting = comp.state.conducting;
+
+        const thB = this.getNetThevenin(bRoot, allPosRoots, allNegRoots, sysVolt, find);
+        const thE = this.getNetThevenin(eRoot, allPosRoots, allNegRoots, sysVolt, find);
+
+        const vb = thB.vTh;
+        const ve = (allNegRoots.has(eRoot) || this.isNetConnectedToNegative(eRoot, allNegRoots, find)) ? 0 : thE.vTh;
+        const vbeDrive = vb - ve;
+
+        comp.state.beta = comp.state.beta || 100; // Standard 2N3904 current gain β (h_FE)
+        comp.state.vbe = Math.max(0, Math.min(0.70, vbeDrive));
+
+        // Silicon NPN Base-Emitter acts as internal PN junction diode requiring ~0.7V forward bias to conduct
+        const isForwardBiased = ((vbeDrive >= 0.70 && bRoot !== eRoot) || comp.state.forceOn);
+
+        if (isForwardBiased) {
+          // A base resistor (R_B) is always required to prevent excessive base current from damaging the junction
+          if (thB.isDirectPos && thB.rTh < 15 && vbeDrive > 1.2) {
+            comp.state.burnt = true;
+            comp.state.burning = true;
+            comp.state.burnReason = 'Base-Emitter Junction Burnout! Silicon BJT base was connected directly to voltage source without a current-limiting base resistor (R_B). Direct forward bias destroyed the PN junction!';
+            comp.state.conducting = false;
+            comp.state.baseCurrent = 0;
+            comp.state.collectorCurrent = 0;
+            comp.state.emitterCurrent = 0;
+            comp.state.operatingRegime = 'cutoff';
+            this.status.failedComponents.push(comp.id);
+            this.status.circuitFailed = true;
+            this.status.failureReason = comp.state.burnReason;
+          } else {
+            const rTh = Math.max(10, thB.rTh);
+            // Base current through forward-biased PN diode: I_B = (V_th - 0.70V) / R_th
+            const ib = Math.max(0.00001, (vbeDrive - 0.70) / rTh);
+            comp.state.theveninIb = ib;
+            comp.state.baseCurrent = ib;
+            comp.state.vbe = 0.70;
+            comp.state.conducting = true;
+            if (!comp.state.operatingRegime || comp.state.operatingRegime === 'cutoff') {
+              comp.state.operatingRegime = 'saturation';
+            }
+          }
+        } else {
+          comp.state.conducting = false;
+          comp.state.baseCurrent = 0;
+          comp.state.collectorCurrent = 0;
+          comp.state.emitterCurrent = 0;
+          comp.state.operatingRegime = 'cutoff';
+          comp.state.vce = sysVolt;
+          comp.state.voltageDrop = sysVolt;
+        }
+
+        if (comp.state.conducting !== wasConducting) transistorFlipped = true;
+      } else if (comp.type === 'pnp') {
+        const eRoot = find(`${comp.id}:e`);
+        const bRoot = find(`${comp.id}:b`);
+        const wasConducting = comp.state.conducting;
+
+        const thE = this.getNetThevenin(eRoot, allPosRoots, allNegRoots, sysVolt, find);
+        const thB = this.getNetThevenin(bRoot, allPosRoots, allNegRoots, sysVolt, find);
+
+        const ve = (allPosRoots.has(eRoot) || this.isNetConnectedToPositive(eRoot, allPosRoots, find)) ? sysVolt : thE.vTh;
+        const vb = thB.vTh;
+        const vebDrive = ve - vb;
+
+        comp.state.beta = comp.state.beta || 100; // Standard 2N3906 current gain β (h_FE)
+        comp.state.veb = Math.max(0, Math.min(0.70, vebDrive));
+
+        // Silicon PNP Base-Emitter conducts when Base is pulled negative relative to Emitter by >= 0.7V
+        const isForwardBiased = ((vebDrive >= 0.70 && bRoot !== eRoot) || comp.state.forceOn);
+
+        if (isForwardBiased) {
+          // Check for direct ground connection without base resistor
+          if (thB.isDirectNeg && thB.rTh < 15 && vebDrive > 1.2) {
+            comp.state.burnt = true;
+            comp.state.burning = true;
+            comp.state.burnReason = 'Base-Emitter Junction Burnout! PNP base was connected directly to ground without a current-limiting base resistor (R_B). Direct forward bias destroyed the PN junction!';
+            comp.state.conducting = false;
+            comp.state.baseCurrent = 0;
+            comp.state.collectorCurrent = 0;
+            comp.state.emitterCurrent = 0;
+            comp.state.operatingRegime = 'cutoff';
+            this.status.failedComponents.push(comp.id);
+            this.status.circuitFailed = true;
+            this.status.failureReason = comp.state.burnReason;
+          } else {
+            const rTh = Math.max(10, thB.rTh);
+            const ib = Math.max(0.00001, (vebDrive - 0.70) / rTh);
+            comp.state.theveninIb = ib;
+            comp.state.baseCurrent = ib;
+            comp.state.veb = 0.70;
+            comp.state.conducting = true;
+            if (!comp.state.operatingRegime || comp.state.operatingRegime === 'cutoff') {
+              comp.state.operatingRegime = 'saturation';
+            }
+          }
+        } else {
+          comp.state.conducting = false;
+          comp.state.baseCurrent = 0;
+          comp.state.collectorCurrent = 0;
+          comp.state.emitterCurrent = 0;
+          comp.state.operatingRegime = 'cutoff';
+          comp.state.vec = sysVolt;
+          comp.state.voltageDrop = sysVolt;
+        }
+
+        if (comp.state.conducting !== wasConducting) transistorFlipped = true;
+      }
+    }
+    return transistorFlipped;
+  }
+
   // Update resistance of all LDR sensors based on proximity and brightness of nearest glowing light source
   updateLDRSensors() {
     const ldrs = this.components.filter(c => (c.type === 'ldr' || c.type === 'photoresistor') && !c.state.burnt);
@@ -334,8 +466,15 @@ class CircuitSolver {
 
     // Find all active glowing lights on canvas
     const lights = [];
+    const isStreetLightLevel = typeof window !== 'undefined' && window.app && (
+      (window.app.currentLevel && (window.app.currentLevel.id === 16 || window.app.currentLevel.id === 22)) ||
+      (window.app.currentLevelIndex === 15 || window.app.currentLevelIndex === 21) ||
+      (window.GAME_LEVELS && window.GAME_LEVELS[window.app.currentLevelIndex] && (window.GAME_LEVELS[window.app.currentLevelIndex].id === 16 || window.GAME_LEVELS[window.app.currentLevelIndex].id === 22))
+    );
     for (const comp of this.components) {
       if (comp.state && comp.state.burnt) continue;
+      // In automatic street light systems, the street lamp is shielded / hooded from its own ambient twilight sensor
+      if (isStreetLightLevel && (comp.type === 'bulb' || comp.type === 'led')) continue;
       if (comp.type === 'bulb' && comp.state.powered && (comp.state.brightness || 0) > 0.05) {
         const pwr = comp.state.brightness;
         lights.push({ id: comp.id, name: 'Incandescent Bulb', x: (comp.x || 0) + 78, y: (comp.y || 0) + 71, power: pwr });
@@ -420,6 +559,7 @@ class CircuitSolver {
         comp.state.previouslyPowered = comp.state.powered || false;
       }
       comp.state.powered = false;
+      comp.state.chargingFromSupply = false;
       comp.state.voltageDrop = 0;
       comp.state.current = 0;
       comp.state.power = 0;
@@ -436,6 +576,11 @@ class CircuitSolver {
 
       if (comp.type === 'buzzer') {
         comp.state.sounding = false;
+      }
+      if (comp.type === 'relay') {
+        comp.state.coilVoltage = 0;
+        comp.state.coilCurrent = 0;
+        comp.state.energized = false;
       }
       if (comp.type === 'motor') {
         comp.state.rpm = 0;
@@ -602,7 +747,8 @@ class CircuitSolver {
           bat.state.powered = true;
         }
       } else {
-        bat.state.voltageDrop = bat.voltage || 9.0;
+        const bDef = (window.COMPONENT_DEFINITIONS && window.COMPONENT_DEFINITIONS[bat.type]) || {};
+        bat.state.voltageDrop = (bat.state && bat.state.voltage !== undefined) ? bat.state.voltage : (bat.voltage || bDef.voltage || 9.0);
       }
       bat.state.current = 0;
       bat.state.power = 0;
@@ -643,135 +789,30 @@ class CircuitSolver {
     // Collect all positive and negative roots across all batteries
     const allPosRoots = new Set();
     const allNegRoots = new Set();
-    for (const bat of batteries) {
-      const posPin = (bat.type === 'ac_source') ? 'l' : (bat.type === 'function_generator' ? 'out' : 'pos');
-      const negPin = (bat.type === 'ac_source') ? 'n' : (bat.type === 'function_generator' ? 'gnd' : 'neg');
-      allPosRoots.add(find(`${bat.id}:${posPin}`));
-      allNegRoots.add(find(`${bat.id}:${negPin}`));
-      if (bat.type === 'function_generator') {
-        allPosRoots.add(find(`${bat.id}:sync`));
+    const updateRoots = () => {
+      allPosRoots.clear();
+      allNegRoots.clear();
+      for (const bat of batteries) {
+        const posPin = (bat.type === 'ac_source') ? 'l' : (bat.type === 'function_generator' ? 'out' : 'pos');
+        const negPin = (bat.type === 'ac_source') ? 'n' : (bat.type === 'function_generator' ? 'gnd' : 'neg');
+        allPosRoots.add(find(`${bat.id}:${posPin}`));
+        allNegRoots.add(find(`${bat.id}:${negPin}`));
+        if (bat.type === 'function_generator') {
+          allPosRoots.add(find(`${bat.id}:sync`));
+        }
       }
-    }
+    };
+    updateRoots();
 
     const sysVolt = batteries.reduce((sum, b) => sum + (b.state.voltage || b.voltage || 9.0), 0) || 9.0;
 
-    for (const comp of this.components) {
-      if (comp.state.burnt) continue;
-      if (comp.type === 'npn') {
-        const bRoot = find(`${comp.id}:b`);
-        const eRoot = find(`${comp.id}:e`);
-        const wasConducting = comp.state.conducting;
-
-        const thB = this.getNetThevenin(bRoot, allPosRoots, allNegRoots, sysVolt, find);
-        const thE = this.getNetThevenin(eRoot, allPosRoots, allNegRoots, sysVolt, find);
-
-        const vb = thB.vTh;
-        const ve = (allNegRoots.has(eRoot) || this.isNetConnectedToNegative(eRoot, allNegRoots, find)) ? 0 : thE.vTh;
-        const vbeDrive = vb - ve;
-
-        comp.state.beta = comp.state.beta || 100; // Standard 2N3904 current gain β (h_FE)
-        comp.state.vbe = Math.max(0, Math.min(0.70, vbeDrive));
-
-        // Silicon NPN Base-Emitter acts as internal PN junction diode requiring ~0.7V forward bias to conduct
-        const isForwardBiased = ((vbeDrive >= 0.70 && bRoot !== eRoot) || comp.state.forceOn);
-
-        if (isForwardBiased) {
-          // A base resistor (R_B) is always required to prevent excessive base current from damaging the junction
-          if (thB.isDirectPos && thB.rTh < 15 && vbeDrive > 1.2) {
-            comp.state.burnt = true;
-            comp.state.burning = true;
-            comp.state.burnReason = 'Base-Emitter Junction Burnout! Silicon BJT base was connected directly to voltage source without a current-limiting base resistor (R_B). Direct forward bias destroyed the PN junction!';
-            comp.state.conducting = false;
-            comp.state.baseCurrent = 0;
-            comp.state.collectorCurrent = 0;
-            comp.state.emitterCurrent = 0;
-            comp.state.operatingRegime = 'cutoff';
-            this.status.failedComponents.push(comp.id);
-            this.status.circuitFailed = true;
-            this.status.failureReason = comp.state.burnReason;
-          } else {
-            const rTh = Math.max(10, thB.rTh);
-            // Base current through forward-biased PN diode: I_B = (V_th - 0.70V) / R_th
-            const ib = Math.max(0.00001, (vbeDrive - 0.70) / rTh);
-            comp.state.theveninIb = ib;
-            comp.state.baseCurrent = ib;
-            comp.state.vbe = 0.70;
-            comp.state.conducting = true;
-            // operatingRegime (active vs saturation) is resolved when evaluating external collector load
-            if (!comp.state.operatingRegime || comp.state.operatingRegime === 'cutoff') {
-              comp.state.operatingRegime = 'saturation';
-            }
-          }
-        } else {
-          comp.state.conducting = false;
-          comp.state.baseCurrent = 0;
-          comp.state.collectorCurrent = 0;
-          comp.state.emitterCurrent = 0;
-          comp.state.operatingRegime = 'cutoff';
-          comp.state.vce = sysVolt;
-          comp.state.voltageDrop = sysVolt;
-        }
-
-        if (comp.state.conducting !== wasConducting) transistorFlipped = true;
-      } else if (comp.type === 'pnp') {
-        const eRoot = find(`${comp.id}:e`);
-        const bRoot = find(`${comp.id}:b`);
-        const wasConducting = comp.state.conducting;
-
-        const thE = this.getNetThevenin(eRoot, allPosRoots, allNegRoots, sysVolt, find);
-        const thB = this.getNetThevenin(bRoot, allPosRoots, allNegRoots, sysVolt, find);
-
-        const ve = (allPosRoots.has(eRoot) || this.isNetConnectedToPositive(eRoot, allPosRoots, find)) ? sysVolt : thE.vTh;
-        const vb = thB.vTh;
-        const vebDrive = ve - vb;
-
-        comp.state.beta = comp.state.beta || 100; // Standard 2N3906 current gain β (h_FE)
-        comp.state.veb = Math.max(0, Math.min(0.70, vebDrive));
-
-        // Silicon PNP Base-Emitter conducts when Base is pulled negative relative to Emitter by >= 0.7V
-        const isForwardBiased = ((vebDrive >= 0.70 && bRoot !== eRoot) || comp.state.forceOn);
-
-        if (isForwardBiased) {
-          // Check for direct ground connection without base resistor
-          if (thB.isDirectNeg && thB.rTh < 15 && vebDrive > 1.2) {
-            comp.state.burnt = true;
-            comp.state.burning = true;
-            comp.state.burnReason = 'Base-Emitter Junction Burnout! PNP base was connected directly to ground without a current-limiting base resistor (R_B). Direct forward bias destroyed the PN junction!';
-            comp.state.conducting = false;
-            comp.state.baseCurrent = 0;
-            comp.state.collectorCurrent = 0;
-            comp.state.emitterCurrent = 0;
-            comp.state.operatingRegime = 'cutoff';
-            this.status.failedComponents.push(comp.id);
-            this.status.circuitFailed = true;
-            this.status.failureReason = comp.state.burnReason;
-          } else {
-            const rTh = Math.max(10, thB.rTh);
-            const ib = Math.max(0.00001, (vebDrive - 0.70) / rTh);
-            comp.state.theveninIb = ib;
-            comp.state.baseCurrent = ib;
-            comp.state.veb = 0.70;
-            comp.state.conducting = true;
-            if (!comp.state.operatingRegime || comp.state.operatingRegime === 'cutoff') {
-              comp.state.operatingRegime = 'saturation';
-            }
-          }
-        } else {
-          comp.state.conducting = false;
-          comp.state.baseCurrent = 0;
-          comp.state.collectorCurrent = 0;
-          comp.state.emitterCurrent = 0;
-          comp.state.operatingRegime = 'cutoff';
-          comp.state.vec = sysVolt;
-          comp.state.voltageDrop = sysVolt;
-        }
-
-        if (comp.state.conducting !== wasConducting) transistorFlipped = true;
-      }
-    }
-
-    if (transistorFlipped) {
+    let tPass = 0;
+    while (tPass < 4) {
+      tPass++;
+      const tf = this.evaluateTransistorBias(find, allPosRoots, allNegRoots, sysVolt);
+      if (!tf) break;
       find = this.buildNets().find;
+      updateRoots();
     }
 
     // Check for short circuit on any source
@@ -889,6 +930,7 @@ class CircuitSolver {
             if (((p1Pos && p2Neg) || (p1Neg && p2Pos)) && p1Net !== p2Net) {
               cap.state.chargePolarity = (appliedV < -0.05 || (p1Neg && p2Pos)) ? 't2_pos' : 't1_pos';
               cap.state.powered = true;
+              cap.state.chargingFromSupply = true;
               cap.state.voltageDrop = absV;
               cap.state.storedVoltage = Math.min(maxV, absV);
               cap.state.chargePercent = Math.min(100, Math.round((cap.state.storedVoltage / maxV) * 100));
@@ -902,6 +944,7 @@ class CircuitSolver {
             if (p1Pos && p2Neg && p1Net !== p2Net) {
               // Charging correctly from power source! Anode (+) to positive, Cathode (−) to ground
               cap.state.powered = true;
+              cap.state.chargingFromSupply = true;
               cap.state.voltageDrop = absV;
               cap.state.storedVoltage = Math.min(maxV, absV);
               cap.state.chargePercent = Math.min(100, Math.round((cap.state.storedVoltage / maxV) * 100));
@@ -912,6 +955,7 @@ class CircuitSolver {
             } else if (p1Neg && p2Pos && p1Net !== p2Net) {
               // Reverse polarity breakdown! Destroys aluminum oxide dielectric & produces hydrogen gas
               cap.state.powered = true;
+              cap.state.chargingFromSupply = true;
               cap.state.reversed = true;
               cap.state.voltageDrop = absV;
               const def = window.COMPONENT_DEFINITIONS['capacitor'] || {};
@@ -927,7 +971,7 @@ class CircuitSolver {
       !c.state.burnt && !c.state.powered && (c.state.storedVoltage || 0) > 0.05
     );
     const capChains = this.findAllBatteryChains(dischargingCapacitors, find);
-    const chains = [...batteryChains, ...capChains];
+    let chains = [...batteryChains, ...capChains];
 
     this.status.totalVoltage = chains.reduce((sum, ch) => sum + ch.totalVoltage, 0);
 
@@ -949,6 +993,72 @@ class CircuitSolver {
     for (const chain of chains) {
       if (chain.primaryPosRoot && chain.primaryNegRoot && chain.primaryPosRoot !== chain.primaryNegRoot && (chain.totalVoltage > 0 || (chain.batteries && chain.batteries.some(b => b.type === 'power_supply')))) {
         this.analyzeCircuitBranches(chain.primaryPosRoot, chain.primaryNegRoot, chain.totalVoltage, find, chain.batteries);
+      }
+    }
+
+    // Convergence for Electromechanical Relays (Coil excitation flips COM-NO / COM-NC contacts)
+    const hasRelays = this.components.some(c => c.type === 'relay' && !c.state.burnt);
+    if (hasRelays) {
+      let relayPasses = 0;
+      while (relayPasses < 4) {
+        let relayChanged = false;
+        for (const r of this.components) {
+          if (r.type === 'relay' && !r.state.burnt) {
+            const isEnergized = ((r.state.coilVoltage || 0) >= 3.50 && (r.state.coilCurrent || 0) >= 0.025);
+            const expectedPin = isEnergized ? 'no' : 'nc';
+            const comNet = find(`${r.id}:com`);
+            const targetNet = find(`${r.id}:${expectedPin}`);
+            if (!!r.state.energized !== isEnergized || comNet !== targetNet) {
+              r.state.energized = isEnergized;
+              relayChanged = true;
+            }
+          }
+        }
+        if (!relayChanged) break;
+        relayPasses++;
+        const newNetBuild = this.buildNets();
+        find = newNetBuild.find;
+        updateRoots();
+        this.evaluateTransistorBias(find, allPosRoots, allNegRoots, sysVolt);
+        const newBatChains = this.findAllBatteryChains(batteries, find);
+        const newCapChains = this.findAllBatteryChains(dischargingCapacitors, find);
+        chains = [...newBatChains, ...newCapChains];
+        this.allValidBranches = [];
+        this.status.activeComponents = new Set();
+
+        // Reset non-battery load states so disconnected contacts do NOT retain stale power!
+        for (const comp of this.components) {
+          if (comp.state.burnt) continue;
+          const isBatterySource = (comp.type === 'battery' || comp.type === 'cell' || comp.type === 'cell3v' || comp.type === 'ac_source' || comp.type === 'power_supply' || comp.type === 'function_generator');
+          if (!isBatterySource) {
+            comp.state.powered = false;
+            comp.state.voltageDrop = 0;
+            comp.state.current = 0;
+            comp.state.power = 0;
+            comp.state.reversed = false;
+            comp.state.blocked = false;
+            comp.state.peakVoltage = 0;
+            comp.state.vPeak = 0;
+            comp.state.vdcAvg = 0;
+            comp.state.vrmsEff = 0;
+            comp.state.heatPower = 0;
+            if (comp.type === 'buzzer') comp.state.sounding = false;
+            if (comp.type === 'motor') comp.state.rpm = 0;
+            if (comp.type === 'bulb' || comp.type === 'led') comp.state.brightness = 0;
+            if (comp.type === 'potentiometer') comp.state.wiperVoltage = 0;
+            if (comp.type === 'voltmeter') comp.state.measuredVoltage = 0;
+            if (comp.type === 'relay') {
+              comp.state.coilVoltage = 0;
+              comp.state.coilCurrent = 0;
+            }
+          }
+        }
+
+        for (const chain of chains) {
+          if (chain.primaryPosRoot && chain.primaryNegRoot && chain.primaryPosRoot !== chain.primaryNegRoot && (chain.totalVoltage > 0 || (chain.batteries && chain.batteries.some(b => b.type === 'power_supply')))) {
+            this.analyzeCircuitBranches(chain.primaryPosRoot, chain.primaryNegRoot, chain.totalVoltage, find, chain.batteries);
+          }
+        }
       }
     }
 
@@ -1016,6 +1126,35 @@ class CircuitSolver {
       }
     }
 
+    // Step-Down Transformer Secondaries & Rectifiers act as active power sources for wire current propagation
+    for (const trans of transformers) {
+      if (trans.state.powered) {
+        const sec1Net = find(`${trans.id}:sec1`);
+        const sec2Net = find(`${trans.id}:sec2`);
+        if (sec1Net && sec2Net && sec1Net !== sec2Net) {
+          chains.push({
+            primaryPosRoot: sec1Net,
+            primaryNegRoot: sec2Net,
+            totalVoltage: trans.state.secondaryV || 12.0,
+            batteries: [trans]
+          });
+        }
+      }
+    }
+    const activeRectifiers = this.components.filter(c => c.type === 'rectifier' && c.state.powered && !c.state.burnt);
+    for (const rect of activeRectifiers) {
+      const pNet = find(`${rect.id}:dc_pos`);
+      const nNet = find(`${rect.id}:dc_neg`);
+      if (pNet && nNet && pNet !== nNet) {
+        chains.push({
+          primaryPosRoot: pNet,
+          primaryNegRoot: nNet,
+          totalVoltage: rect.state.voltageDrop || 10.6,
+          batteries: [rect]
+        });
+      }
+    }
+
     // Pass 2: Two-pass convergence for Optical Coupling (e.g. Incandescent Bulb in Circuit 1 shining on LDR in Circuit 2)
     const hasLDR = this.components.some(c => c.type === 'ldr');
     if (hasLDR) {
@@ -1026,6 +1165,17 @@ class CircuitSolver {
         // Clear branches before re-running Pass 2 so branches are not duplicated!
         this.allValidBranches = [];
         this.status.activeComponents = new Set();
+        // Re-evaluate transistor base bias with the new converged LDR resistance!
+        updateRoots();
+        const tf = this.evaluateTransistorBias(find, allPosRoots, allNegRoots, sysVolt);
+        if (tf) {
+          find = this.buildNets().find;
+          updateRoots();
+        }
+        // Keep chains synchronized with current net topology
+        const newBatChains = this.findAllBatteryChains(batteries, find);
+        const newCapChains = this.findAllBatteryChains(dischargingCapacitors, find);
+        chains = [...newBatChains, ...newCapChains];
         // Re-run branches for all chains once with the updated LDR resistances
         for (const chain of chains) {
           if (chain.primaryPosRoot && chain.primaryNegRoot && (chain.totalVoltage > 0 || (chain.batteries && chain.batteries.some(b => b.type === 'power_supply')))) {
@@ -1037,48 +1187,101 @@ class CircuitSolver {
       }
     }
 
+    // Helper to verify a component terminal is physically connected by at least one active wire
+    const isPinWired = (compId, pinId) => {
+      if (!this.wires) return false;
+      return this.wires.some(w => !(w.state && w.state.burnt) && (
+        (w.fromComp === compId && w.fromPin === pinId) ||
+        (w.toComp === compId && w.toPin === pinId)
+      ));
+    };
+
     // Update all Voltmeters and Wattmeters across canvas based on node thevenin voltages
+    updateRoots();
     for (const comp of this.components) {
       if (comp.state.burnt) continue;
       if (comp.type === 'voltmeter') {
+        const hasWireP = isPinWired(comp.id, 'pin_pos');
+        const hasWireN = isPinWired(comp.id, 'pin_neg');
         const netP = find(`${comp.id}:pin_pos`);
         const netN = find(`${comp.id}:pin_neg`);
-        if (netP && netN && netP !== netN) {
-          const vP = this.getNetTheveninVoltage(netP, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const vN = this.getNetTheveninVoltage(netN, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const diff = Math.abs(vP - vN);
-          comp.state.measuredVoltage = diff;
-          comp.state.voltageDrop = diff;
-          comp.state.powered = diff > 0.01;
-          if (comp.state.powered) this.status.activeComponents.add(comp.id);
+        // Voltmeter strictly requires BOTH probe terminals (+ and -) to be physically wired to two distinct non-floating nodes
+        if (hasWireP && hasWireN && netP && netN && netP !== netN) {
+          const thP = this.getNetThevenin(netP, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          const thN = this.getNetThevenin(netN, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          // Both probe terminals must be connected to non-floating conductive nodes in an electrical circuit
+          if (thP.rTh < 1e8 && thN.rTh < 1e8) {
+            let diff = 0;
+            const loadComp = this.components.find(c => {
+              if (c.id === comp.id || c.state.burnt || !c.terminals || c.terminals.length < 2) return false;
+              const t1 = find(`${c.id}:${c.terminals[0].id}`);
+              const t2 = find(`${c.id}:${c.terminals[1].id}`);
+              return (t1 === netP && t2 === netN) || (t1 === netN && t2 === netP);
+            });
+            if (loadComp && loadComp.state && (loadComp.state.voltageDrop !== undefined || loadComp.state.measuredVoltage !== undefined)) {
+              diff = loadComp.state.voltageDrop || loadComp.state.measuredVoltage || 0;
+            }
+            if (diff <= 0.01) {
+              diff = Math.abs(thP.vTh - thN.vTh);
+            }
+            comp.state.measuredVoltage = diff;
+            comp.state.voltageDrop = diff;
+            comp.state.powered = diff > 0.01;
+            if (comp.state.powered) this.status.activeComponents.add(comp.id);
+          } else {
+            comp.state.measuredVoltage = 0;
+            comp.state.voltageDrop = 0;
+            comp.state.powered = false;
+          }
         } else {
           comp.state.measuredVoltage = 0;
           comp.state.voltageDrop = 0;
           comp.state.powered = false;
         }
       } else if (comp.type === 'wattmeter') {
+        const hasWireP = isPinWired(comp.id, 'in_pos');
+        const hasWireN = isPinWired(comp.id, 'in_neg');
         const netInP = find(`${comp.id}:in_pos`);
         const netInN = find(`${comp.id}:in_neg`);
-        if (netInP && netInN && netInP !== netInN) {
-          const vP = this.getNetTheveninVoltage(netInP, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const vN = this.getNetTheveninVoltage(netInN, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const diff = Math.abs(vP - vN);
-          comp.state.voltage = diff;
-          comp.state.power = diff * (comp.state.current || 0);
-          comp.state.powered = comp.state.power > 0 || diff > 0.01;
-          if (comp.state.powered) this.status.activeComponents.add(comp.id);
+        if (hasWireP && hasWireN && netInP && netInN && netInP !== netInN) {
+          const thP = this.getNetThevenin(netInP, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          const thN = this.getNetThevenin(netInN, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          if (thP.rTh < 1e8 && thN.rTh < 1e8) {
+            const diff = Math.abs(thP.vTh - thN.vTh);
+            comp.state.voltage = diff;
+            comp.state.power = diff * (comp.state.current || 0);
+            comp.state.powered = comp.state.power > 0 || diff > 0.01;
+            if (comp.state.powered) this.status.activeComponents.add(comp.id);
+          } else {
+            comp.state.voltage = 0;
+            comp.state.power = 0;
+            comp.state.powered = false;
+          }
+        } else {
+          comp.state.voltage = 0;
+          comp.state.power = 0;
+          comp.state.powered = false;
         }
       } else if (comp.type === 'multimeter') {
-        const netVin = find(`${comp.id}:vin`);
+        const vinPin = comp.terminals && comp.terminals.some(t => t.id === 'v_ohm') ? 'v_ohm' : 'vin';
+        const hasWireVin = isPinWired(comp.id, 'vin') || isPinWired(comp.id, 'v_ohm');
+        const hasWireCom = isPinWired(comp.id, 'com');
+        const netVin = find(`${comp.id}:${vinPin}`);
         const netCom = find(`${comp.id}:com`);
-        if (netVin && netCom && netVin !== netCom) {
-          const vP = this.getNetTheveninVoltage(netVin, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const vN = this.getNetTheveninVoltage(netCom, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
-          const diff = Math.abs(vP - vN);
-          comp.state.measuredVoltage = diff;
-          comp.state.voltageDrop = diff;
-          comp.state.powered = true;
-          this.status.activeComponents.add(comp.id);
+        if (hasWireVin && hasWireCom && netVin && netCom && netVin !== netCom) {
+          const thP = this.getNetThevenin(netVin, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          const thN = this.getNetThevenin(netCom, allPosRoots, allNegRoots, this.status.totalVoltage || 9.0, find);
+          if (thP.rTh < 1e8 && thN.rTh < 1e8) {
+            const diff = Math.abs(thP.vTh - thN.vTh);
+            comp.state.measuredVoltage = diff;
+            comp.state.voltageDrop = diff;
+            comp.state.powered = true;
+            this.status.activeComponents.add(comp.id);
+          } else {
+            comp.state.measuredVoltage = 0;
+            comp.state.voltageDrop = 0;
+            comp.state.powered = false;
+          }
         } else {
           comp.state.measuredVoltage = 0;
           comp.state.voltageDrop = 0;
@@ -1749,6 +1952,31 @@ class CircuitSolver {
     // Evaluate Digital Logic Gates (AND, OR, NOT, NAND, NOR, XOR, XNOR)
     this.evaluateLogicGates(find, allPosRoots, allNegRoots, this.status.totalVoltage);
 
+    // Strict physical contact enforcement: components without electrical continuity CANNOT operate!
+    for (const comp of this.components) {
+      if (comp.state.burnt) continue;
+      const isPowerSource = (comp.type === 'battery' || comp.type === 'cell' || comp.type === 'cell3v' || comp.type === 'ac_source' || comp.type === 'power_supply' || comp.type === 'function_generator' || comp.type === 'transformer' || ((comp.type === 'capacitor' || comp.type === 'ceramic_capacitor') && (comp.state.current > 0 || (comp.state.storedVoltage || 0) > 0.05)));
+      if (isPowerSource) continue;
+
+      if (!this.status.activeComponents.has(comp.id)) {
+        comp.state.powered = false;
+        comp.state.current = 0;
+        comp.state.voltageDrop = 0;
+        comp.state.power = 0;
+        if (comp.type === 'bulb' || comp.type === 'led') comp.state.brightness = 0;
+        if (comp.type === 'motor') comp.state.rpm = 0;
+        if (comp.type === 'buzzer') comp.state.sounding = false;
+        if (comp.type === 'relay') {
+          comp.state.coilVoltage = 0;
+          comp.state.coilCurrent = 0;
+          comp.state.energized = false;
+        }
+        if (comp.type === 'voltmeter') {
+          comp.state.measuredVoltage = 0;
+        }
+      }
+    }
+
     // Determine wire currents and direction (+ to -) for animated particles across all circuits
     this.calculateWireCurrents(chains, find);
 
@@ -1769,7 +1997,7 @@ class CircuitSolver {
     // Helper to evaluate logic level (1 or 0) of any network pin
     const evaluateNetLevel = (netName, manualFallback = 0) => {
       if (!netName || !find) return manualFallback ? 1 : 0;
-      
+
       // Driver gate (individual gate_*)
       const driverGate = logicGates.find(g => find(`${g.id}:out`) === netName);
       if (driverGate) return driverGate.state.outputLevel ? 1 : 0;
@@ -2133,7 +2361,9 @@ class CircuitSolver {
         return Math.max(0.001, (b.state.voltage !== undefined ? b.state.voltage : 12.0));
       }
       if (b.type === 'capacitor' || b.type === 'ceramic_capacitor') return (b.state.storedVoltage || 0);
-      return (b.voltage || 9.0);
+      const bDef = (window.COMPONENT_DEFINITIONS && window.COMPONENT_DEFINITIONS[b.type]) || {};
+      const bVolt = (b.state && b.state.voltage !== undefined) ? b.state.voltage : (b.voltage || bDef.voltage || (b.type === 'battery' ? 9.0 : 1.5));
+      return Math.max(0, bVolt);
     };
 
     const batInfos = [];
@@ -2710,7 +2940,7 @@ class CircuitSolver {
     const sourceTypes = new Set(['battery', 'cell', 'cell3v', 'ac_source', 'power_supply', 'function_generator', 'gate_and', 'gate_or', 'gate_not', 'gate_nand', 'gate_nor', 'gate_xor', 'gate_xnor']);
     for (const comp of this.components) {
       if (sourceTypes.has(comp.type)) continue;
-      if (comp.type === 'switch' || comp.type === 'pushbutton') continue; // Handled in net union
+      if (comp.type === 'switch' || comp.type === 'pushbutton' || comp.type === 'twowayswitch') continue; // Handled in net union
       if (comp.type === 'multimeter' || comp.type === 'voltmeter') continue; // High impedance sensing devices
       if (comp.state.burnt) continue; // Burnt components are blown open circuits!
 
@@ -2872,6 +3102,20 @@ class CircuitSolver {
             resistance: 5.0
           });
         }
+      } else if (comp.type === 'relay' && !comp.state.burnt) {
+        const netC1 = find(`${comp.id}:coil1`);
+        const netC2 = find(`${comp.id}:coil2`);
+        if (netC1 && netC2 && netC1 !== netC2) {
+          edges.push({
+            comp,
+            subId: 'coil',
+            netA: netC1,
+            netB: netC2,
+            pinA: 'coil1',
+            pinB: 'coil2',
+            resistance: comp.state.resistance || 70
+          });
+        }
       } else if (comp.terminals.length === 2) {
         const pinA = comp.terminals[0].id;
         const pinB = comp.terminals[1].id;
@@ -2911,6 +3155,9 @@ class CircuitSolver {
           } else {
             continue;
           }
+
+          // A simple conduction path from (+) to (-) must not cycle back into the positive source rail
+          if (nextNet === startNet) continue;
 
           // Semiconductor Diode & LED One-Way Check:
           // In real physics, current can ONLY flow through a diode/LED in the forward direction: Anode -> Cathode!
@@ -3127,7 +3374,7 @@ class CircuitSolver {
           const vBands = { red: 1.85, orange: 2.00, yellow: 2.10, green: 2.20, blue: 3.10, purple: 3.10, white: 3.15 };
           const vF = comp.state.forwardVoltage || vBands[ledCol] || 2.05;
           vBarrierTotal += vF;
-          sumR += 15;
+          sumR += 35;
         } else if (comp.type === 'diode') {
           vBarrierTotal += 0.70; // 0.70V silicon barrier
           sumR += 8;
@@ -3321,11 +3568,78 @@ class CircuitSolver {
         continue;
       }
 
+      // Check if this passive/load branch is shunted by a parallel conducting transistor path to Ground (RTL Logic)
+      const transChannelStep = bp.transChannelStep;
+      if (!transChannelStep) {
+        let isShunted = false;
+        let shuntCutoffIndex = -1;
+
+        for (let i = 0; i < branch.length - 1; i++) {
+          const intermediateNet = branch[i].nextNet;
+          if (intermediateNet === negRoot) continue;
+
+          for (const t of this.components) {
+            if (t.state.burnt || !t.state.conducting) continue;
+            if (t.type === 'npn') {
+              const cNet = find(`${t.id}:c`);
+              const eNet = find(`${t.id}:e`);
+              if (cNet === intermediateNet) {
+                let reachesNeg = (eNet === negRoot);
+                let vClamp = (t.state.operatingRegime === 'saturation' ? 0.20 : (t.state.vce || 0.20));
+
+                if (!reachesNeg) {
+                  // Check series pull-down transistor chain (e.g. discrete NAND logic)
+                  const t2 = this.components.find(o => o.id !== t.id && o.type === 'npn' && o.state.conducting && !o.state.burnt && find(`${o.id}:c`) === eNet && find(`${o.id}:e`) === negRoot);
+                  if (t2) {
+                    reachesNeg = true;
+                    vClamp += (t2.state.operatingRegime === 'saturation' ? 0.20 : (t2.state.vce || 0.20));
+                  }
+                }
+
+                if (reachesNeg) {
+                  // Calculate barrier voltage of downstream load sub-branch from intermediateNet to Ground
+                  let downstreamBarrier = 0;
+                  for (let j = i + 1; j < branch.length; j++) {
+                    const cComp = branch[j].edge.comp;
+                    if (cComp.type === 'led') {
+                      const col = cComp.state.color || 'red';
+                      const vBands = { red: 1.85, orange: 2.00, yellow: 2.10, green: 2.20, blue: 3.10, purple: 3.10, white: 3.15 };
+                      downstreamBarrier += (cComp.state.forwardVoltage || vBands[col] || 2.05);
+                    } else if (cComp.type === 'diode') {
+                      downstreamBarrier += 0.70;
+                    }
+                  }
+
+                  if (downstreamBarrier > vClamp) {
+                    isShunted = true;
+                    shuntCutoffIndex = i + 1;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          if (isShunted) break;
+        }
+
+        if (isShunted && shuntCutoffIndex >= 0) {
+          // Clamped by active transistor: zero out downstream load components
+          for (let k = shuntCutoffIndex; k < branch.length; k++) {
+            const comp = branch[k].edge.comp;
+            comp.state.powered = false;
+            comp.state.voltageDrop = 0;
+            comp.state.current = 0;
+            comp.state.power = 0;
+            if (comp.type === 'led') comp.state.brightness = 0;
+          }
+          continue;
+        }
+      }
+
       // Peak branch current: I_pk = (V_pk - V_barrier) / R_linear
       let iPeak = (vPeak - vBarrierTotal) / totalLinearR;
 
       // Check if this branch contains a transistor collector-emitter channel
-      const transChannelStep = bp.transChannelStep;
       let transVceActive = 0.20;
 
       if (transChannelStep) {
@@ -3360,7 +3674,7 @@ class CircuitSolver {
               const ledCol = s.edge.comp.state.color || 'red';
               const vBands = { red: 1.85, orange: 2.00, yellow: 2.10, green: 2.20, blue: 3.10, purple: 3.10, white: 3.15 };
               const vF = s.edge.comp.state.forwardVoltage || vBands[ledCol] || 2.05;
-              externalLoadsVDrop += (vF + icMax * 15);
+              externalLoadsVDrop += (vF + icMax * 35);
             }
             else if (s.edge.comp.type === 'diode') externalLoadsVDrop += (0.70 + icMax * 8);
             else {
@@ -3445,8 +3759,8 @@ class CircuitSolver {
           const ledCol = comp.state.color || 'red';
           const vBands = { red: 1.85, orange: 2.00, yellow: 2.10, green: 2.20, blue: 3.10, purple: 3.10, white: 3.15 };
           const vF = comp.state.forwardVoltage || vBands[ledCol] || 2.05;
-          vDrop = Math.min(effectiveBranchV, vF + effCurrent * 15);
-          vPeakComp = Math.min(vPeak, vF + iPeak * 15);
+          vDrop = Math.min(effectiveBranchV, vF + effCurrent * 35);
+          vPeakComp = Math.min(vPeak, vF + iPeak * 35);
         } else if (comp.type === 'diode') {
           vDrop = Math.min(effectiveBranchV, 0.70 + effCurrent * 8);
           vPeakComp = Math.min(vPeak, 0.70 + iPeak * 8);
@@ -3514,6 +3828,8 @@ class CircuitSolver {
         const net2 = find(`${comp.id}:${comp.terminals[1].id}`);
         for (const cap of this.components) {
           if (cap.state.burnt) continue;
+          // If this capacitor is currently acting as the discharging power source for this circuit, do not recharge it!
+          if (chainBatteries && chainBatteries.some(b => b.id === cap.id)) continue;
           if (cap.type === 'capacitor') {
             const anNet = find(`${cap.id}:anode`);
             const catNet = find(`${cap.id}:cathode`);
@@ -3577,8 +3893,35 @@ class CircuitSolver {
             if (vDrop < 0.55 || effCurrent < 0.012) {
               comp.state.rpm = 0;
             } else {
-              // Back-EMF & torque RPM model: nominal 3V gives ~3,600 RPM; 9V gives ~11,800 RPM; series resistors reduce RPM smoothly
-              comp.state.rpm = Math.min(18000, Math.round((vDrop - 0.45) * 1400));
+              // Back-EMF & electromagnetic torque dynamic RPM model:
+              // Direct 9V gives ~14,800 RPM (increased slightly).
+              // DC motor speed dynamically responds to external circuit series resistance:
+              const totalBranchR = bp.totalLinearR || 40;
+              const motorR = comp.state.resistance || 40;
+              const rSeries = Math.max(0, totalBranchR - motorR);
+              const rDamping = motorR / (motorR + rSeries * 0.40);
+              const rawRpm = (vDrop - 0.35) * 1750 * Math.pow(rDamping, 0.25);
+              comp.state.rpm = Math.min(24000, Math.max(0, Math.round(rawRpm)));
+            }
+          } else if (comp.type === 'relay') {
+            comp.state.coilVoltage = Math.max(comp.state.coilVoltage || 0, vDrop);
+            comp.state.coilCurrent = Math.max(comp.state.coilCurrent || 0, effCurrent);
+            comp.state.power = comp.state.coilVoltage * comp.state.coilCurrent;
+            // 5V Relay pick-up threshold: pull-in voltage >= 3.5V and excitation current >= 25mA
+            if (comp.state.coilVoltage >= 3.50 && comp.state.coilCurrent >= 0.025) {
+              comp.state.energized = true;
+            } else {
+              comp.state.energized = false;
+            }
+            // Over-voltage burnout protection (rated 5V coil, safe on 5V-9V DC supply, burnt if > 12.0V sustained overvoltage)
+            if (vDrop > 12.0 && !comp.state.burnt) {
+              comp.state.burnt = true;
+              comp.state.burning = true;
+              comp.state.energized = false;
+              comp.state.burnReason = `Relay Coil Burnout! Sustained coil voltage (${vDrop.toFixed(1)}V) exceeded 5V maximum rating. Electromagnet winding insulation overheated and melted!`;
+              this.status.failedComponents.push(comp.id);
+              this.status.circuitFailed = true;
+              if (window.sounds && window.sounds.playExplosion) window.sounds.playExplosion();
             }
           } else if (comp.type === 'bulb') {
             // Incandescent Tungsten Filament Physics:
@@ -3621,7 +3964,7 @@ class CircuitSolver {
             // Electromagnetism: B = μ·n·I (Ampere's law in solenoid)
             comp.state.magneticFieldB = effCurrent * 12.57; // in mT
             comp.state.pullForce = Math.min(45, Math.pow(effCurrent, 2) * 32); // in Newtons
-            comp.state.armPosition = effCurrent > 0.05 ? 1.0 : 0.0;
+            comp.state.armPosition = effCurrent > 0.02 ? 1.0 : 0.0;
           } else if (comp.type === 'potentiometer') {
             const totalR = comp.state.totalResistance || 1000;
             const ratio = comp.state.wiperRatio !== undefined ? comp.state.wiperRatio : (comp.state.resistance !== undefined ? comp.state.resistance / totalR : 0.5);
@@ -3714,7 +4057,10 @@ class CircuitSolver {
               }
             }
           } else if (comp.type === 'voltmeter') {
-            comp.state.measuredVoltage = vDrop;
+            const hasWireP = isPinWired(comp.id, 'pin_pos');
+            const hasWireN = isPinWired(comp.id, 'pin_neg');
+            comp.state.measuredVoltage = (hasWireP && hasWireN) ? vDrop : 0;
+            comp.state.powered = (hasWireP && hasWireN && vDrop > 0.01);
           } else if (comp.type === 'fuse') {
             comp.state.current = effCurrent;
             comp.state.voltageDrop = vDrop;
@@ -3839,7 +4185,7 @@ class CircuitSolver {
             const ledCol = comp.state.color || 'red';
             const vBands = { red: 1.85, orange: 2.00, yellow: 2.10, green: 2.20, blue: 3.10, purple: 3.10, white: 3.15 };
             vB += (comp.state.forwardVoltage || vBands[ledCol] || 2.05);
-            rL += 15;
+            rL += 35;
           } else if (comp.type === 'diode') {
             vB += 0.70;
             rL += 8;
@@ -3862,6 +4208,7 @@ class CircuitSolver {
 
     for (const bat of chainBatteries) {
       bat.state.powered = true;
+      this.status.activeComponents.add(bat.id);
       let myCurrent = chainTotalCurrent;
       if (isParallelCapChain && totalCapFarads > 0) {
         const getCapF = (b) => (b.type === 'ceramic_capacitor' ? (b.state.capacitanceUf || 0.1) * 1e-6 : (b.state.capacitance || 1000) * 1e-6);
@@ -3872,7 +4219,7 @@ class CircuitSolver {
       if (bat.type === 'battery' || bat.type === 'cell') {
         const bDef = (window.COMPONENT_DEFINITIONS && window.COMPONENT_DEFINITIONS[bat.type]) || {};
         const esr = bat.internalR !== undefined ? bat.internalR : (bDef.internalR || (bat.type === 'battery' ? 1.5 : 0.5));
-        const ocv = bat.voltage || bDef.voltage || (bat.type === 'battery' ? 9.0 : 1.5);
+        const ocv = (bat.state && bat.state.voltage !== undefined) ? bat.state.voltage : (bat.voltage || bDef.voltage || (bat.type === 'battery' ? 9.0 : 1.5));
         const iDrain = chainTotalCurrent;
         const vSag = iDrain * esr;
         const vTerm = Math.max(0, ocv - vSag);
@@ -3984,7 +4331,7 @@ class CircuitSolver {
 
     // 1. LED Overvoltage / Direct 9V without Resistor
     if (comp.type === 'led') {
-      if (vDrop > def.maxVoltage || current > def.maxCurrent) {
+      if (vDrop > def.maxVoltage || (current > def.maxCurrent && totalVoltage > (def.maxVoltage || 3.3))) {
         failed = true;
         reason = `LED Destroyed by Overvoltage! ${vDrop.toFixed(1)}V applied (Max rated: ${def.maxVoltage}V, 40mA). Without a current-limiting Resistor (e.g. 220Ω), excessive current of ${(current * 1000).toFixed(0)}mA melted the semiconductor die!`;
         diagnostic = {
@@ -4325,6 +4672,11 @@ class CircuitSolver {
         addEdge(`${comp.id}:com`, `${comp.id}:${throwPin}`, { type: 'twowayswitch', comp });
       }
 
+      if (comp.type === 'relay') {
+        const contactPin = comp.state.energized ? 'no' : 'nc';
+        addEdge(`${comp.id}:com`, `${comp.id}:${contactPin}`, { type: 'switch', comp });
+      }
+
       if (comp.type === 'npn' && comp.state.conducting) {
         addEdge(`${comp.id}:c`, `${comp.id}:e`, { type: 'transistor', comp, current: comp.state.collectorCurrent || 0.01 });
         if (comp.state.baseCurrent > 0) {
@@ -4352,6 +4704,28 @@ class CircuitSolver {
         if (comp.state.powered && (comp.state.secondaryCurrent > 0 || comp.state.primaryCurrent > 0 || comp.state.current > 0)) {
           // Transformer primary coil is a load on the AC input side
           addEdge(`${comp.id}:pri1`, `${comp.id}:pri2`, { type: 'load', comp, current: comp.state.primaryCurrent || 0.01 });
+        }
+      } else if (comp.type === 'relay') {
+        if (comp.state.powered && (comp.state.coilCurrent > 0 || comp.state.current > 0)) {
+          addEdge(`${comp.id}:coil1`, `${comp.id}:coil2`, { type: 'load', comp, current: comp.state.coilCurrent || comp.state.current || 0.07 });
+        }
+      } else if (comp.type === 'rectifier') {
+        if (comp.state.powered) {
+          const iRect = comp.state.current || 0.02;
+          // AC load side
+          addEdge(`${comp.id}:ac1`, `${comp.id}:ac2`, { type: 'load', comp, current: iRect });
+          // Diode forward paths from AC to DC+
+          addEdge(`${comp.id}:ac1`, `${comp.id}:dc_pos`, { type: 'diode', comp, current: iRect });
+          addEdge(`${comp.id}:ac2`, `${comp.id}:dc_pos`, { type: 'diode', comp, current: iRect });
+          // Diode return paths from DC- to AC
+          addEdge(`${comp.id}:dc_neg`, `${comp.id}:ac1`, { type: 'diode', comp, current: iRect });
+          addEdge(`${comp.id}:dc_neg`, `${comp.id}:ac2`, { type: 'diode', comp, current: iRect });
+        }
+      } else if (comp.type === 'capacitor' || comp.type === 'ceramic_capacitor') {
+        if (comp.state.powered || (comp.state.storedVoltage || 0) > 0.05) {
+          const p1 = (comp.type === 'ceramic_capacitor') ? `${comp.id}:t1` : `${comp.id}:anode`;
+          const p2 = (comp.type === 'ceramic_capacitor') ? `${comp.id}:t2` : `${comp.id}:cathode`;
+          addEdge(p1, p2, { type: 'load', comp, current: comp.state.current || 0.005 });
         }
       } else if (comp.state.powered && comp.state.current > 0) {
         if (comp.terminals.length === 2) {
@@ -4487,6 +4861,34 @@ class CircuitSolver {
       sourceNegPins.add(s2);
       acTerminalPins.add(s1);
       acTerminalPins.add(s2);
+      // Secondary internal winding conduction:
+      addEdge(s2, s1, {
+        type: 'bat_internal',
+        comp: trans,
+        fromNode: s2,
+        toNode: s1
+      });
+      addEdge(s1, s2, {
+        type: 'bat_internal',
+        comp: trans,
+        fromNode: s1,
+        toNode: s2
+      });
+    }
+
+    // Bridge Rectifiers: DC output rails act as DC power source terminals for downstream DC loads
+    const rectifiers = this.components.filter(c => c.type === 'rectifier' && c.state.powered && !c.state.burnt);
+    for (const rect of rectifiers) {
+      const p = `${rect.id}:dc_pos`;
+      const n = `${rect.id}:dc_neg`;
+      sourcePosPins.add(p);
+      sourceNegPins.add(n);
+      addEdge(n, p, {
+        type: 'bat_internal',
+        comp: rect,
+        fromNode: n,
+        toNode: p
+      });
     }
 
     // Logic Gate output sources (5.0V Logic HIGH)
@@ -4654,6 +5056,10 @@ class CircuitSolver {
       const neighbors = activeAdj.get(curr) || [];
       for (const { to, edge } of neighbors) {
         if (!edge.active) continue;
+        // Rectifiers convert AC into DC: do not propagate AC status past the diode bridge to DC rails
+        if (edge.data && edge.data.comp && edge.data.comp.type === 'rectifier' && (to.includes('dc_pos') || to.includes('dc_neg'))) {
+          continue;
+        }
         if (!acReachable.has(to)) {
           acReachable.add(to);
           acBfsQueue.push(to);
@@ -4694,6 +5100,9 @@ class CircuitSolver {
       if (load.type === 'transformer') {
         termPos = `${load.id}:pri1`;
         termNeg = `${load.id}:pri2`;
+      } else if (load.type === 'rectifier') {
+        termPos = `${load.id}:ac1`;
+        termNeg = `${load.id}:ac2`;
       } else if (load.terminals && load.terminals.length >= 2) {
         // Find valid connected terminals for this component in the active conduction loop
         const connectedPins = load.terminals

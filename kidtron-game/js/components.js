@@ -782,6 +782,31 @@ const CHARACTER_PROFILES = {
     }
   },
 
+  relay: {
+    name: '5V SPDT Relay (5-Pin)',
+    nick: '5V Relay',
+    title: 'Electromechanical Relay',
+    avatar: '🧲',
+    voicePitch: 1.15,
+    voiceRate: 1.02,
+    superpower: 'Uses a tiny 5V signal to magnetically switch high-power circuits ON and OFF with complete electrical isolation!',
+    functionAndUsage: 'I am the 5V SPDT Sugar-Cube Relay! When 5 Volts is applied across my Coil terminals, an electromagnet pulls my internal armature blade with a satisfying CLICK, disconnecting Common (COM) from Normally Closed (NC) and connecting it to Normally Open (NO)! This lets a gentle 5V control circuit safely switch massive motors, bright AC mains lamps, and industrial machines without any electrical danger!',
+    importance: 'Relays are the backbone of modern automation, automotive electronics, smart homes, robotics, and industrial process control.',
+    ratedPower: 'Coil: 5.0V DC (70 Ω, ~71mA) • Contacts: 10A 250VAC / 30VDC (SPDT Form C)',
+    idealPowerSource: 'Wire Coil 1 & Coil 2 across a 5V source (or 3x AA batteries / 5V DC supply). Wire your load and power source through COM and NO (or NC)!',
+    storyForKids: 'Click-snap! I am the 5V Electromagnetic Relay! Inside my blue box, I have an electromagnet coil and a springy metal switch blade. When you give my coil 5 Volts, the magnet wakes up and pulls the metal blade with a crisp SNAP! Now whatever you connect to my Normally Open (NO) terminal turns ON! When power leaves my coil, the spring snaps back to Normally Closed (NC)! It is like magic: one circuit controls another without touching!',
+    dialogues: {
+      greeting: "Hello! I am the 5V Electromechanical Relay! Feed my coil 5V and I will magnetically switch your high-power loads!",
+      askPower: "Give my Coil (Pins 1 and 2) 5 Volts DC to energize my magnet! My contacts can switch anything up to 10 Amperes!",
+      happy: "SNAP! Coil energized! Armature firmly closed onto NO! Secondary circuit is live and running!",
+      dim: "Click! Coil de-energized! The spring pulled my blade back to NC. Standing by!",
+      cryingWarning: "Whoa!! Check the coil voltage! My coil is rated for 5V DC, please do not apply more than 8V or my solenoid will burn! 💥",
+      burningDeath: "COIL BURNOUT! Too much voltage across my coil melted the copper solenoid turns! 🔥",
+      burntOut: "My coil is burnt open. Please click Repair / Replace to give me a fresh relay!",
+      reverseBiased: "My coil conducts in either polarity, and my contacts switch both DC and AC!"
+    }
+  },
+
   pushbutton: {
     name: 'Pushbutton Switch',
     nick: 'Pushbutton',
@@ -2013,6 +2038,36 @@ const COMPONENT_DEFINITIONS = {
       crying: false
     })
   },
+  relay: {
+    name: '5V Relay (SPDT 5-Pin)',
+    category: 'control',
+    width: 180,
+    height: 130,
+    resistance: 70,
+    nominalVoltage: 5.0,
+    maxVoltage: 12.0,
+    maxCurrent: 10.0,
+    description: '5V DC sugar-cube SPDT electromechanical relay (SRD-05VDC-SL-C). 5-Pin: Coil 1, Coil 2, COM, NO (Normally Open), NC (Normally Closed). Magnetically switches high-power DC/AC loads.',
+    terminals: [
+      { id: 'coil1', label: 'COIL 1', x: 22, y: 40, polarity: 'pos', color: '#ff9f0a' },
+      { id: 'coil2', label: 'COIL 2', x: 22, y: 90, polarity: 'neg', color: '#38bdf8' },
+      { id: 'no', label: 'NO', x: 158, y: 26, polarity: null, color: '#22c55e' },
+      { id: 'com', label: 'COM', x: 158, y: 65, polarity: null, color: '#f59e0b' },
+      { id: 'nc', label: 'NC', x: 158, y: 104, polarity: null, color: '#94a3b8' }
+    ],
+    createState: () => ({
+      energized: false,
+      powered: false,
+      current: 0,
+      voltageDrop: 0,
+      coilVoltage: 0,
+      coilCurrent: 0,
+      burning: false,
+      burnt: false,
+      crying: false,
+      burnReason: ''
+    })
+  },
   resistor: {
     name: 'Fixed Resistor',
     category: 'passive',
@@ -2438,7 +2493,7 @@ const COMPONENT_DEFINITIONS = {
     description: 'Precision in-line current meter with AC/DC current selector button. Connect in SERIES to measure electron flow. Ultra-low 0.01Ω internal shunt with 10A fast-blow protection fuse.',
     terminals: [
       { id: 'pin_pos', label: 'Positive (+) In', x: 40, y: 116, polarity: 'pos', color: '#ef4444' },
-      { id: 'pin_neg', label: 'Negative (−) Out', x: 100, y: 116, polarity: 'neg', color: '#1e293b' }
+      { id: 'pin_neg', label: 'Negative (−) Out', x: 100, y: 116, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       mode: 'dc', // 'dc' or 'ac'
@@ -2472,7 +2527,7 @@ const COMPONENT_DEFINITIONS = {
     description: 'Precision voltage potential meter. Connect in PARALLEL. Displays electrical potential difference across two points.',
     terminals: [
       { id: 'pin_pos', label: 'Positive (+) Sense', x: 40, y: 116, polarity: 'pos', color: '#ef4444' },
-      { id: 'pin_neg', label: 'Negative (−) Sense', x: 100, y: 116, polarity: 'neg', color: '#1e293b' }
+      { id: 'pin_neg', label: 'Negative (−) Sense', x: 100, y: 116, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       measuredVoltage: 0,
@@ -2497,9 +2552,9 @@ const COMPONENT_DEFINITIONS = {
     description: 'Digital Active Power Meter. Measures instantaneous voltage and current to calculate electrical power consumption P = V × I in Watts.',
     terminals: [
       { id: 'in_pos', label: 'Source In (+)', x: 30, y: 40, polarity: 'pos', color: '#ef4444' },
-      { id: 'in_neg', label: 'Source In (−)', x: 30, y: 110, polarity: 'neg', color: '#1e293b' },
+      { id: 'in_neg', label: 'Source In (−)', x: 30, y: 110, polarity: 'neg', color: '#2563eb' },
       { id: 'out_pos', label: 'Load Out (+)', x: 130, y: 40, polarity: 'pos', color: '#ef4444' },
-      { id: 'out_neg', label: 'Load Out (−)', x: 130, y: 110, polarity: 'neg', color: '#1e293b' }
+      { id: 'out_neg', label: 'Load Out (−)', x: 130, y: 110, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       power: 0,
@@ -2526,7 +2581,7 @@ const COMPONENT_DEFINITIONS = {
     terminals: [
       { id: 'pos', label: 'Output (+)', x: 40, y: 160, polarity: 'pos', color: '#ef4444' },
       { id: 'gnd', label: 'Earth GND', x: 85, y: 160, polarity: 'ground', color: '#f59e0b' },
-      { id: 'neg', label: 'Output (−)', x: 130, y: 160, polarity: 'neg', color: '#1e293b' }
+      { id: 'neg', label: 'Output (−)', x: 130, y: 160, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       voltage: 12.0,
@@ -2584,7 +2639,7 @@ const COMPONENT_DEFINITIONS = {
     terminals: [
       { id: 'sync', label: 'Sync / TTL Out', x: 45, y: 148, polarity: 'pos', color: '#38bdf8' },
       { id: 'out', label: 'Main Out (+)', x: 120, y: 148, polarity: 'pos', color: '#ef4444' },
-      { id: 'gnd', label: 'Ground Return (−)', x: 175, y: 148, polarity: 'neg', color: '#1e293b' }
+      { id: 'gnd', label: 'Ground Return (−)', x: 175, y: 148, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       waveform: 'sine', // 'sine' | 'square' | 'pulse' | 'triangle' | 'ramp' | 'sawtooth' | 'noise' | 'cardiac' | 'dc'
@@ -2628,7 +2683,7 @@ const COMPONENT_DEFINITIONS = {
     terminals: [
       { id: 'ch1', label: 'CH1 In (+)', x: 70, y: 268, polarity: 'pos', color: '#eab308' },
       { id: 'ch2', label: 'CH2 In (+)', x: 165, y: 268, polarity: 'pos', color: '#06b6d4' },
-      { id: 'gnd', label: 'GND Ref (−)', x: 260, y: 268, polarity: 'neg', color: '#1e293b' }
+      { id: 'gnd', label: 'GND Ref (−)', x: 260, y: 268, polarity: 'neg', color: '#2563eb' }
     ],
     createState: () => ({
       runStop: 'run', // 'run' | 'stop' | 'single'
@@ -3270,14 +3325,14 @@ class ComponentRenderer {
         const bulbHaloOpacity = Math.min(0.88, Math.pow(bulbBrightness, 0.85) * 0.82);
         const flareSpikesOpacity = bulbBrightness < 0.25 ? 0 : Math.min(0.92, (bulbBrightness - 0.25) * 1.25);
         const globeFillOpacity = Math.min(0.95, Math.max(0.08, Math.pow(bulbBrightness, 0.70) * 0.88));
-        const filamentColor = !isLit ? '#94a3b8' : 
-          (bulbBrightness < 0.12 ? '#dc2626' : 
-          (bulbBrightness < 0.35 ? '#ea580c' : 
-          (bulbBrightness < 0.75 ? '#f59e0b' : '#ffffff')));
-        const filamentGlowColor = !isLit ? 'transparent' : 
-          (bulbBrightness < 0.12 ? 'rgba(220, 38, 38, 0.5)' : 
-          (bulbBrightness < 0.35 ? '#c2410c' : 
-          (bulbBrightness < 0.75 ? '#f59e0b' : '#fef08a')));
+        const filamentColor = !isLit ? '#94a3b8' :
+          (bulbBrightness < 0.12 ? '#dc2626' :
+            (bulbBrightness < 0.35 ? '#ea580c' :
+              (bulbBrightness < 0.75 ? '#f59e0b' : '#ffffff')));
+        const filamentGlowColor = !isLit ? 'transparent' :
+          (bulbBrightness < 0.12 ? 'rgba(220, 38, 38, 0.5)' :
+            (bulbBrightness < 0.35 ? '#c2410c' :
+              (bulbBrightness < 0.75 ? '#f59e0b' : '#fef08a')));
 
         content = `
           <g class="comp-bulb comp-real-bulb ${isPowered ? 'powered' : ''} ${isCrying ? 'danger-pulse character-crying-shake' : ''}">
@@ -4913,6 +4968,186 @@ class ComponentRenderer {
             ${isBurnt ? `
               <rect x="38" y="57" width="74" height="50" rx="2.5" fill="#18181b" opacity="0.85"/>
               <text x="75" y="86" fill="#ef4444" font-family="'Outfit', sans-serif" font-size="7" font-weight="900" text-anchor="middle">💥 CONTACTS FUSED!</text>
+            ` : ''}
+          </g>
+        `;
+        break;
+      }
+
+      // 9b. REALISTIC 5V SPDT 5-PIN ELECTROMAGNETIC SUGAR-CUBE RELAY (Songle SRD-05VDC-SL-C)
+      case 'relay': {
+        const isEnergized = !!state.energized && !isBurnt;
+        const coil1Term = comp.terminals?.find(t => t.id === 'coil1') || { x: 22, y: 40 };
+        const coil2Term = comp.terminals?.find(t => t.id === 'coil2') || { x: 22, y: 90 };
+        const noTerm = comp.terminals?.find(t => t.id === 'no') || { x: 158, y: 26 };
+        const comTerm = comp.terminals?.find(t => t.id === 'com') || { x: 158, y: 65 };
+        const ncTerm = comp.terminals?.find(t => t.id === 'nc') || { x: 158, y: 104 };
+
+        // Armature blade angle:
+        // When de-energized: contacts rest on NC (connecting COM at y:65 down towards NC at y:90)
+        // When energized: electromagnetic pull snaps armature up to NO (connecting COM at y:65 towards NO at y:40)
+        const bladeAngle = isEnergized ? -24 : 24;
+
+        content = `
+          <g class="comp-relay ${isEnergized ? 'relay-energized' : 'relay-standby'} ${isBurnt ? 'relay-burnt' : ''}" style="cursor: pointer;">
+            <defs>
+              <!-- Songle Royal Blue Enclosure Gradient -->
+              <linearGradient id="relay-case-${comp.id}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#2563eb"/>
+                <stop offset="25%" stop-color="#1d4ed8"/>
+                <stop offset="70%" stop-color="#1e40af"/>
+                <stop offset="100%" stop-color="#172554"/>
+              </linearGradient>
+
+              <!-- Phenolic Sub-Chassis Gradient -->
+              <linearGradient id="relay-base-${comp.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="50%" stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#020617"/>
+              </linearGradient>
+
+              <!-- Copper Coil Wire Gradient -->
+              <linearGradient id="relay-coil-${comp.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#78350f"/>
+                <stop offset="25%" stop-color="#d97706"/>
+                <stop offset="50%" stop-color="#fbbf24"/>
+                <stop offset="75%" stop-color="#d97706"/>
+                <stop offset="100%" stop-color="#451a03"/>
+              </linearGradient>
+
+              <!-- Silver/Brass Contact Blade Gradient -->
+              <linearGradient id="relay-blade-${comp.id}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="40%" stop-color="#e2e8f0"/>
+                <stop offset="80%" stop-color="#94a3b8"/>
+                <stop offset="100%" stop-color="#475569"/>
+              </linearGradient>
+
+              <!-- Brass Terminal Gradient -->
+              <linearGradient id="relay-brass-${comp.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#fef08a"/>
+                <stop offset="40%" stop-color="#eab308"/>
+                <stop offset="85%" stop-color="#a16207"/>
+                <stop offset="100%" stop-color="#713f12"/>
+              </linearGradient>
+            </defs>
+
+            <!-- 1. Ambient Drop Shadow -->
+            <rect x="14" y="14" width="152" height="102" rx="7" fill="#000000" opacity="0.45" filter="blur(3px)"/>
+
+            <!-- 2. Phenolic Substrate Base Flange -->
+            <rect x="12" y="12" width="156" height="106" rx="6" fill="url(#relay-base-${comp.id})" stroke="#334155" stroke-width="1.2"/>
+
+            <!-- 3. Royal-Blue Sugar-Cube Molded Plastic Casing -->
+            <rect x="15" y="15" width="150" height="100" rx="5" fill="url(#relay-case-${comp.id})" stroke="#1d4ed8" stroke-width="1.4"/>
+            <!-- Top Specular Case Highlight -->
+            <line x1="18" y1="17" x2="162" y2="17" stroke="#93c5fd" stroke-width="0.9" opacity="0.65" stroke-linecap="round"/>
+
+            <!-- 4. Corner Securing Solder Mounting Rivets -->
+            <circle cx="20" cy="20" r="1.8" fill="#64748b"/>
+            <circle cx="160" cy="20" r="1.8" fill="#64748b"/>
+            <circle cx="20" cy="110" r="1.8" fill="#64748b"/>
+            <circle cx="160" cy="110" r="1.8" fill="#64748b"/>
+
+            <!-- 5. Left Inspection Window: Copper Solenoid Coil & Soft-Iron Core -->
+            <rect x="28" y="32" width="46" height="66" rx="3" fill="#091329" stroke="#1e3a8a" stroke-width="0.8"/>
+            <!-- Soft iron cylindrical core -->
+            <rect x="34" y="61" width="34" height="8" rx="1.5" fill="#475569" stroke="#334155" stroke-width="0.6"/>
+            <!-- Tightly wound copper wire turns -->
+            <path d="M 36 38 Q 51 35 66 38 M 36 43 Q 51 40 66 43 M 36 48 Q 51 45 66 48 M 36 53 Q 51 50 66 53 M 36 58 Q 51 55 66 58 M 36 72 Q 51 69 66 72 M 36 77 Q 51 74 66 77 M 36 82 Q 51 79 66 82 M 36 87 Q 51 84 66 87 M 36 92 Q 51 89 66 92" stroke="url(#relay-coil-${comp.id})" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+            <!-- Coil terminal leads -->
+            <path d="M ${coil1Term.x} ${coil1Term.y} L 36 44" stroke="url(#relay-coil-${comp.id})" stroke-width="2.0" fill="none"/>
+            <path d="M ${coil2Term.x} ${coil2Term.y} L 36 86" stroke="url(#relay-coil-${comp.id})" stroke-width="2.0" fill="none"/>
+
+            ${isEnergized ? `
+              <!-- Dynamic Magnetic Flux Glow around Coil when Energized -->
+              <rect x="28" y="32" width="46" height="66" rx="3" fill="#38bdf8" opacity="0.22" filter="blur(3px)"/>
+              <ellipse cx="51" cy="65" rx="20" ry="26" fill="none" stroke="#60a5fa" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.85"/>
+            ` : ''}
+
+            <!-- 6. Center-Right Inspection Chamber: Armature & Switching Contacts -->
+            <rect x="80" y="22" width="70" height="86" rx="3" fill="#090d16" stroke="#1e293b" stroke-width="0.8"/>
+
+            <!-- Internal Stamped Schematic Trace Lines -->
+            <!-- COM Trace: from comTerm (158, 65) straight into hinge (96, 65) -->
+            <line x1="${comTerm.x}" y1="${comTerm.y}" x2="96" y2="65" stroke="url(#relay-brass-${comp.id})" stroke-width="2.2"/>
+            <!-- NO Trace: from stationary contact (134, 40) to noTerm (158, 26) -->
+            <path d="M 134 40 L 146 32 L ${noTerm.x} ${noTerm.y}" stroke="#94a3b8" stroke-width="1.8" fill="none"/>
+            <!-- NC Trace: from stationary contact (134, 90) to ncTerm (158, 104) -->
+            <path d="M 134 90 L 146 98 L ${ncTerm.x} ${ncTerm.y}" stroke="#94a3b8" stroke-width="1.8" fill="none"/>
+
+            <!-- Contact Stationary Silver Rivets -->
+            <!-- NO Contact Rivet at (134, 40) -->
+            <circle cx="134" cy="40" r="3.2" fill="url(#relay-blade-${comp.id})" stroke="#334155" stroke-width="0.8"/>
+            <circle cx="134" cy="40" r="1.4" fill="#ffffff"/>
+
+            <!-- NC Contact Rivet at (134, 90) -->
+            <circle cx="134" cy="90" r="3.2" fill="url(#relay-blade-${comp.id})" stroke="#334155" stroke-width="0.8"/>
+            <circle cx="134" cy="90" r="1.4" fill="#ffffff"/>
+
+            <!-- Common Hinge Rivet at (96, 65) -->
+            <circle cx="96" cy="65" r="3.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="96" cy="65" r="1.6" fill="#fef08a"/>
+
+            <!-- 7. Movable Silver Armature Contact Blade (Pivots at COM 96, 65) -->
+            <g transform="translate(96, 65) rotate(${bladeAngle})" style="transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);">
+              <!-- Armature blade shadow -->
+              <rect x="0" y="-1.5" width="40" height="4" rx="1" fill="#000000" opacity="0.4" filter="blur(1px)"/>
+              <!-- Silver-plated spring copper blade -->
+              <rect x="0" y="-2" width="40" height="4" rx="1" fill="url(#relay-blade-${comp.id})" stroke="#334155" stroke-width="0.6"/>
+              <line x1="2" y1="-0.8" x2="38" y2="-0.8" stroke="#ffffff" stroke-width="0.8" opacity="0.85" stroke-linecap="round"/>
+              <!-- Armature moving contact tip pad -->
+              <circle cx="40" cy="0" r="3.0" fill="url(#relay-blade-${comp.id})" stroke="#475569" stroke-width="0.8"/>
+              <circle cx="40" cy="0" r="1.3" fill="#ffffff"/>
+            </g>
+
+            <!-- 8. Contact Sparkle / Spark when Energized -->
+            ${isEnergized ? `
+              <circle cx="134" cy="40" r="6" fill="#fbbf24" opacity="0.4" filter="blur(2px)"/>
+              <line x1="131" y1="37" x2="137" y2="43" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round"/>
+              <line x1="137" y1="37" x2="131" y2="43" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round"/>
+            ` : `
+              <circle cx="134" cy="90" r="3.5" fill="#38bdf8" opacity="0.25" filter="blur(1px)"/>
+            `}
+
+            <!-- 9. Active Coil Status Indicator LED -->
+            <circle cx="51" cy="104" r="3.2" fill="${isEnergized ? '#22c55e' : '#334155'}" stroke="${isEnergized ? '#16a34a' : '#1e293b'}" stroke-width="0.8"/>
+            ${isEnergized ? `
+              <circle cx="51" cy="104" r="6" fill="#22c55e" opacity="0.5" filter="blur(2px)"/>
+              <circle cx="50.2" cy="103.2" r="1" fill="#ffffff"/>
+            ` : ''}
+
+            <!-- 10. External Brass Terminal Binding Posts with Hex Nuts and Screws -->
+            <!-- Coil 1 Post (+) -->
+            <polygon points="${coil1Term.x - 5},${coil1Term.y} ${coil1Term.x - 2.5},${coil1Term.y - 4.3} ${coil1Term.x + 2.5},${coil1Term.y - 4.3} ${coil1Term.x + 5},${coil1Term.y} ${coil1Term.x + 2.5},${coil1Term.y + 4.3} ${coil1Term.x - 2.5},${coil1Term.y + 4.3}" fill="#a16207" stroke="#713f12" stroke-width="0.7"/>
+            <circle cx="${coil1Term.x}" cy="${coil1Term.y}" r="4.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="${coil1Term.x}" cy="${coil1Term.y}" r="1.8" fill="#713f12"/>
+
+            <!-- Coil 2 Post (−) -->
+            <polygon points="${coil2Term.x - 5},${coil2Term.y} ${coil2Term.x - 2.5},${coil2Term.y - 4.3} ${coil2Term.x + 2.5},${coil2Term.y - 4.3} ${coil2Term.x + 5},${coil2Term.y} ${coil2Term.x + 2.5},${coil2Term.y + 4.3} ${coil2Term.x - 2.5},${coil2Term.y + 4.3}" fill="#a16207" stroke="#713f12" stroke-width="0.7"/>
+            <circle cx="${coil2Term.x}" cy="${coil2Term.y}" r="4.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="${coil2Term.x}" cy="${coil2Term.y}" r="1.8" fill="#713f12"/>
+
+            <!-- NO Post -->
+            <polygon points="${noTerm.x - 5},${noTerm.y} ${noTerm.x - 2.5},${noTerm.y - 4.3} ${noTerm.x + 2.5},${noTerm.y - 4.3} ${noTerm.x + 5},${noTerm.y} ${noTerm.x + 2.5},${noTerm.y + 4.3} ${noTerm.x - 2.5},${noTerm.y + 4.3}" fill="#a16207" stroke="#713f12" stroke-width="0.7"/>
+            <circle cx="${noTerm.x}" cy="${noTerm.y}" r="4.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="${noTerm.x}" cy="${noTerm.y}" r="1.8" fill="#713f12"/>
+
+            <!-- COM Post (Dedicated Clean Edge Terminal) -->
+            <polygon points="${comTerm.x - 5},${comTerm.y} ${comTerm.x - 2.5},${comTerm.y - 4.3} ${comTerm.x + 2.5},${comTerm.y - 4.3} ${comTerm.x + 5},${comTerm.y} ${comTerm.x + 2.5},${comTerm.y + 4.3} ${comTerm.x - 2.5},${comTerm.y + 4.3}" fill="#a16207" stroke="#713f12" stroke-width="0.7"/>
+            <circle cx="${comTerm.x}" cy="${comTerm.y}" r="4.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="${comTerm.x}" cy="${comTerm.y}" r="1.8" fill="#713f12"/>
+
+            <!-- NC Post -->
+            <polygon points="${ncTerm.x - 5},${ncTerm.y} ${ncTerm.x - 2.5},${ncTerm.y - 4.3} ${ncTerm.x + 2.5},${ncTerm.y - 4.3} ${ncTerm.x + 5},${ncTerm.y} ${ncTerm.x + 2.5},${ncTerm.y + 4.3} ${ncTerm.x - 2.5},${ncTerm.y + 4.3}" fill="#a16207" stroke="#713f12" stroke-width="0.7"/>
+            <circle cx="${ncTerm.x}" cy="${ncTerm.y}" r="4.8" fill="url(#relay-brass-${comp.id})" stroke="#713f12" stroke-width="0.8"/>
+            <circle cx="${ncTerm.x}" cy="${ncTerm.y}" r="1.8" fill="#713f12"/>
+
+            <!-- 11. Overload / Burnt Effects -->
+            ${isBurnt ? `
+              <rect x="15" y="15" width="150" height="100" rx="5" fill="#18181b" opacity="0.88"/>
+              <ellipse cx="51" cy="65" rx="22" ry="24" fill="#000000" opacity="0.8"/>
+              <ellipse cx="134" cy="65" rx="16" ry="30" fill="#000000" opacity="0.8"/>
             ` : ''}
           </g>
         `;
@@ -6716,8 +6951,8 @@ class ComponentRenderer {
             <text x="40" y="119" fill="#ffffff" font-family="'Outfit', sans-serif" font-size="9" font-weight="900" text-anchor="middle">+</text>
 
             <!-- Negative (−) Out Black Post at (100, 116) -->
-            <circle cx="100" cy="116" r="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.2"/>
-            <circle cx="100" cy="116" r="4.5" fill="#334155"/>
+            <circle cx="100" cy="116" r="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2"/>
+            <circle cx="100" cy="116" r="4.5" fill="#60a5fa"/>
             <text x="100" y="119" fill="#ffffff" font-family="'Outfit', sans-serif" font-size="9" font-weight="900" text-anchor="middle">−</text>
 
             <!-- Blown Fuse / Overcurrent Char Overlay -->
@@ -6735,10 +6970,10 @@ class ComponentRenderer {
 
       // 25. PRECISION VOLTMETER (VOLTAGE MEASUREMENT)
       case 'voltmeter': {
-        const isPowered = state.powered && !isBurnt && !isBurning;
-        const voltV = Math.abs(state.measuredVoltage !== undefined ? state.measuredVoltage : (state.voltageDrop || 0));
+        const isPowered = !!state.powered && !isBurnt && !isBurning && (state.measuredVoltage || 0) > 0.01;
+        const voltV = isPowered ? Math.abs(state.measuredVoltage || 0) : 0.0;
         const readingStr = voltV.toFixed(2) + ' V';
-        const needleAngle = -45 + Math.min(90, (voltV / 50.0) * 90);
+        const needleAngle = isPowered ? (-45 + Math.min(90, (voltV / 50.0) * 90)) : -45;
 
         content = `
           <g class="comp-voltmeter ${isPowered ? 'powered' : ''} ${isCrying ? 'character-crying-shake' : ''}">
@@ -6764,8 +6999,8 @@ class ComponentRenderer {
             <circle cx="40" cy="116" r="4.5" fill="#f87171"/>
             <text x="40" y="119" fill="#ffffff" font-family="'Outfit', sans-serif" font-size="9" font-weight="900" text-anchor="middle">+</text>
 
-            <circle cx="100" cy="116" r="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.2"/>
-            <circle cx="100" cy="116" r="4.5" fill="#334155"/>
+            <circle cx="100" cy="116" r="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2"/>
+            <circle cx="100" cy="116" r="4.5" fill="#60a5fa"/>
             <text x="100" y="119" fill="#ffffff" font-family="'Outfit', sans-serif" font-size="9" font-weight="900" text-anchor="middle">−</text>
 
             ${isBurnt ? `
@@ -6804,14 +7039,14 @@ class ComponentRenderer {
             <circle cx="30" cy="40" r="7.5" fill="#ef4444" stroke="#7f1d1d" stroke-width="1.2"/>
             <text x="30" y="43" fill="#ffffff" font-size="8" font-weight="900" text-anchor="middle">+</text>
 
-            <circle cx="30" cy="110" r="7.5" fill="#1e293b" stroke="#0f172a" stroke-width="1.2"/>
+            <circle cx="30" cy="110" r="7.5" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2"/>
             <text x="30" y="113" fill="#ffffff" font-size="8" font-weight="900" text-anchor="middle">−</text>
 
             <text x="130" y="28" fill="#64748b" font-size="6.5" font-weight="800" text-anchor="middle">OUT</text>
             <circle cx="130" cy="40" r="7.5" fill="#ef4444" stroke="#7f1d1d" stroke-width="1.2"/>
             <text x="130" y="43" fill="#ffffff" font-size="8" font-weight="900" text-anchor="middle">+</text>
 
-            <circle cx="130" cy="110" r="7.5" fill="#1e293b" stroke="#0f172a" stroke-width="1.2"/>
+            <circle cx="130" cy="110" r="7.5" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2"/>
             <text x="130" y="113" fill="#ffffff" font-size="8" font-weight="900" text-anchor="middle">−</text>
 
             ${isBurnt ? `
@@ -6896,8 +7131,8 @@ class ComponentRenderer {
             <circle cx="85" cy="160" r="4.5" fill="#fbbf24"/>
             <text x="85" y="163" fill="#ffffff" font-size="7" font-weight="900" text-anchor="middle">⏚</text>
 
-            <circle cx="130" cy="160" r="8" fill="#1e293b" stroke="#0f172a" stroke-width="1.2"/>
-            <circle cx="130" cy="160" r="4.5" fill="#334155"/>
+            <circle cx="130" cy="160" r="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2"/>
+            <circle cx="130" cy="160" r="4.5" fill="#60a5fa"/>
             <text x="130" y="163" fill="#ffffff" font-size="9" font-weight="900" text-anchor="middle">−</text>
 
             ${isBurnt ? `
@@ -8187,6 +8422,8 @@ class ComponentRenderer {
       displayName = `SINGLE POLE SWITCH ${comp.state.closed ? '(ON)' : '(OFF)'}`;
     } else if (comp.type === 'twowayswitch') {
       displayName = `TWO-WAY SWITCH (L${comp.state.position || 1})`;
+    } else if (comp.type === 'relay') {
+      displayName = `5V RELAY ${comp.state.energized ? '(ENERGIZED • NO)' : '(STANDBY • NC)'}`;
     } else if (comp.type === 'potentiometer') {
       displayName = `POTENTIOMETER (${comp.state.resistance || 500}Ω)`;
     } else if (comp.type === 'multimeter') {
@@ -8668,6 +8905,20 @@ class ComponentRenderer {
         return `<g stroke="#ffffff" stroke-width="1.6" fill="none"><circle cx="6" cy="9" r="2" fill="#ffffff"/><circle cx="20" cy="5" r="2" fill="#ffffff"/><circle cx="20" cy="13" r="2" fill="#ffffff"/><line x1="2" y1="9" x2="4" y2="9"/><line x1="22" y1="5" x2="24" y2="5"/><line x1="22" y1="13" x2="24" y2="13"/><line x1="7" y1="9" x2="18" y2="5"/></g>`;
       case 'pushbutton':
         return `<g stroke="#ffffff" stroke-width="1.6" fill="none"><circle cx="7" cy="12" r="2" fill="#ffffff"/><circle cx="19" cy="12" r="2" fill="#ffffff"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="21" y1="12" x2="24" y2="12"/><line x1="7" y1="7" x2="19" y2="7"/><line x1="13" y1="2" x2="13" y2="7"/></g>`;
+      case 'relay':
+        return `<g stroke="#ffffff" stroke-width="1.4" fill="none">
+          <rect x="2" y="3" width="7" height="12" rx="1.5" stroke="#ffffff"/>
+          <line x1="5.5" y1="1" x2="5.5" y2="3"/>
+          <line x1="5.5" y1="15" x2="5.5" y2="17"/>
+          <line x1="9" y1="5" x2="9" y2="13" stroke-dasharray="1.5,1"/>
+          <circle cx="15" cy="9" r="1.5" fill="#ffffff"/>
+          <circle cx="24" cy="5" r="1.5" fill="#ffffff"/>
+          <circle cx="24" cy="13" r="1.5" fill="#ffffff"/>
+          <line x1="11" y1="9" x2="15" y2="9"/>
+          <line x1="24" y1="5" x2="27" y2="5"/>
+          <line x1="24" y1="13" x2="27" y2="13"/>
+          <line x1="16" y1="9" x2="22.5" y2="5"/>
+        </g>`;
       case 'resistor':
         return `<g stroke="#ffffff" stroke-width="1.6" fill="none"><polyline points="2,9 6,9 8,5 11,13 14,5 17,13 19,9 24,9"/></g>`;
       case 'potentiometer':
@@ -9156,6 +9407,41 @@ class ComponentRenderer {
           <line x1="33.5" y1="33" x2="33.5" y2="44" stroke="#334155" stroke-width="1.2"/>
           <circle cx="16.5" cy="44" r="2.2" fill="#1e293b" stroke="#64748b" stroke-width="0.8"/>
           <circle cx="33.5" cy="44" r="2.2" fill="#1e293b" stroke="#64748b" stroke-width="0.8"/>
+        </svg>`;
+      case 'relay':
+        return `<svg viewBox="0 0 50 40" class="catalog-thumb-svg">
+          <defs>
+            <linearGradient id="thumb-relay-case" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#2563eb"/>
+              <stop offset="50%" stop-color="#1d4ed8"/>
+              <stop offset="100%" stop-color="#172554"/>
+            </linearGradient>
+          </defs>
+          <!-- Base flange -->
+          <rect x="5" y="6" width="40" height="28" rx="2.5" fill="#0f172a" stroke="#334155" stroke-width="0.8"/>
+          <!-- Blue body -->
+          <rect x="7" y="8" width="36" height="24" rx="2" fill="url(#thumb-relay-case)" stroke="#1e40af" stroke-width="0.8"/>
+          <!-- Top highlight -->
+          <line x1="9" y1="10" x2="41" y2="10" stroke="#93c5fd" stroke-width="0.6" opacity="0.7"/>
+          <!-- Mini window and moving armature contact -->
+          <rect x="10" y="14" width="11" height="15" rx="1" fill="#091329" stroke="#1e3a8a" stroke-width="0.5"/>
+          <rect x="23" y="14" width="17" height="15" rx="1" fill="#090d16" stroke="#1e293b" stroke-width="0.5"/>
+          <!-- Coil turns in window -->
+          <path d="M 12 17 Q 15.5 15.5 19 17 M 12 20 Q 15.5 18.5 19 20 M 12 23 Q 15.5 21.5 19 23 M 12 26 Q 15.5 24.5 19 26" stroke="#d97706" stroke-width="0.8" fill="none"/>
+          <!-- Brass contacts in window -->
+          <circle cx="26" cy="21.5" r="0.9" fill="#ca8a04"/>
+          <line x1="26" y1="21.5" x2="35" y2="18.5" stroke="#ffffff" stroke-width="0.7"/>
+          <circle cx="36" cy="18.5" r="0.8" fill="#e2e8f0"/>
+          <circle cx="36" cy="24.5" r="0.8" fill="#e2e8f0"/>
+          <!-- Terminal posts -->
+          <circle cx="5.5" cy="15" r="1.0" fill="#eab308"/>
+          <circle cx="5.5" cy="27" r="1.0" fill="#eab308"/>
+          <circle cx="44.5" cy="13" r="1.0" fill="#eab308"/>
+          <circle cx="44.5" cy="21" r="1.0" fill="#eab308"/>
+          <circle cx="44.5" cy="29" r="1.0" fill="#eab308"/>
+          <!-- Active Green LED -->
+          <circle cx="15.5" cy="26" r="1.1" fill="#22c55e"/>
+          <circle cx="16" cy="19.5" r="1.1" fill="#22c55e"/>
         </svg>`;
       case 'buzzer':
         return `<svg viewBox="0 0 50 44" class="catalog-thumb-svg">

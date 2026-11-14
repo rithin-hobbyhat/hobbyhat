@@ -452,40 +452,56 @@ class SoundEffects {
     this.init();
     if (!this.ctx) return;
 
+    // Immediately stop all speech synthesis / voice offers
+    this.stopSpeech();
+
     const now = this.ctx.currentTime;
 
-    // 1. Initial Pop / Bang
-    const osc = this.ctx.createOscillator();
-    const oscGain = this.ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
-    oscGain.gain.setValueAtTime(0.4, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    osc.connect(oscGain);
-    oscGain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.25);
+    // 1. Explosive Shockwave Transient (Supersonic package crack)
+    const snapOsc = this.ctx.createOscillator();
+    const snapGain = this.ctx.createGain();
+    snapOsc.type = 'sawtooth';
+    snapOsc.frequency.setValueAtTime(450, now);
+    snapOsc.frequency.exponentialRampToValueAtTime(35, now + 0.18);
+    snapGain.gain.setValueAtTime(0.75, now);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    snapOsc.connect(snapGain);
+    snapGain.connect(this.ctx.destination);
+    snapOsc.start(now);
+    snapOsc.stop(now + 0.19);
 
-    // 2. Sizzling Electrical Noise
-    const bufferSize = this.ctx.sampleRate * 0.8;
+    // 2. Low-Frequency Subwoofer Explosion Thump
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(120, now);
+    subOsc.frequency.exponentialRampToValueAtTime(22, now + 0.5);
+    subGain.gain.setValueAtTime(0.9, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 0.51);
+
+    // 3. Electrical Arc Blast & Sizzle Shower
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.7);
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.3));
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.15));
     }
 
     const noise = this.ctx.createBufferSource();
     noise.buffer = buffer;
 
     const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(2400, now);
-    filter.frequency.exponentialRampToValueAtTime(600, now + 0.8);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(3200, now);
+    filter.frequency.exponentialRampToValueAtTime(350, now + 0.6);
 
     const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.35, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    noiseGain.gain.setValueAtTime(0.65, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
 
     noise.connect(filter);
     filter.connect(noiseGain);

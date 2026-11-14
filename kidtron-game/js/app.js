@@ -98,6 +98,23 @@ class CircuitApp {
       levelDots: document.getElementById('level-progress-dots'),
       modeCurriculumBtn: document.getElementById('mode-curriculum-btn'),
       modeSandboxBtn: document.getElementById('mode-sandbox-btn'),
+      btnPreTask: document.getElementById('btn-pretask'),
+      btnTaskMenu: document.getElementById('btn-task-menu'),
+      btnNextTaskTop: document.getElementById('btn-nexttask-top'),
+
+      // Task Details Modal
+      taskDetailModal: document.getElementById('task-detail-modal'),
+      btnCloseTaskModal: document.getElementById('btn-close-task-modal'),
+      btnCloseTaskModalBtn: document.getElementById('btn-close-task-modal-btn'),
+      btnModalPreTask: document.getElementById('btn-modal-pretask'),
+      btnModalNextTask: document.getElementById('btn-modal-nexttask'),
+      taskModalBadge: document.getElementById('task-modal-badge'),
+      taskModalTitle: document.getElementById('task-modal-title'),
+      taskModalSubtitle: document.getElementById('task-modal-subtitle'),
+      taskModalInstructions: document.getElementById('task-modal-instructions'),
+      taskModalChecklist: document.getElementById('task-modal-checklist'),
+      taskModalTheory: document.getElementById('task-modal-theory'),
+      taskModalTheorySection: document.getElementById('task-modal-theory-section'),
 
       // Tool buttons
       btnHint: document.getElementById('btn-hint'),
@@ -714,6 +731,32 @@ class CircuitApp {
       this.dom.btnSkipTaskSidebar.addEventListener('touchstart', handleSkip, { passive: false });
     }
 
+    // Top Menubar Pre-Task & Task Buttons
+    if (this.dom.btnPreTask) {
+      this.dom.btnPreTask.addEventListener('click', () => this.previousTask());
+    }
+    if (this.dom.btnTaskMenu) {
+      this.dom.btnTaskMenu.addEventListener('click', () => this.toggleTaskModal(true));
+    }
+    if (this.dom.btnCloseTaskModal) {
+      this.dom.btnCloseTaskModal.addEventListener('click', () => this.toggleTaskModal(false));
+    }
+    if (this.dom.btnCloseTaskModalBtn) {
+      this.dom.btnCloseTaskModalBtn.addEventListener('click', () => this.toggleTaskModal(false));
+    }
+    if (this.dom.btnModalPreTask) {
+      this.dom.btnModalPreTask.addEventListener('click', () => {
+        this.previousTask();
+        this.toggleTaskModal(true);
+      });
+    }
+    if (this.dom.btnModalNextTask) {
+      this.dom.btnModalNextTask.addEventListener('click', () => {
+        this.skipTask();
+        this.toggleTaskModal(true);
+      });
+    }
+
     // Victory Celebratory Bottom Dock Handlers
     if (this.dom.btnDockTable) {
       this.dom.btnDockTable.addEventListener('click', () => {
@@ -888,6 +931,12 @@ class CircuitApp {
       // 1. Moving a component
       if (this.compDrag) {
         const comp = this.compDrag.comp;
+        const curClientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : (e.clientX !== undefined ? e.clientX : 0);
+        const curClientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : (e.clientY !== undefined ? e.clientY : 0);
+        if (this.compDrag.startClientX !== undefined && Math.hypot(curClientX - this.compDrag.startClientX, curClientY - this.compDrag.startClientY) > 8) {
+          this.compDrag.moved = true;
+        }
+
         const stageRect = stage.getBoundingClientRect();
         const def = window.COMPONENT_DEFINITIONS[comp.type];
 
@@ -1018,7 +1067,10 @@ class CircuitApp {
 
         const tipX = probe.x + 16;
         const tipY = probe.y + 5;
-        const snapped = this.findPinNear(tipX, tipY, 32);
+        // Increased touch snap radius for smartphones and touchscreens
+        const isTouchScreen = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        const snapRadius = isTouchScreen ? 48 : 34;
+        const snapped = this.findPinNear(tipX, tipY, snapRadius);
         probe.snappedPin = snapped ? `${snapped.comp.id}:${snapped.pin.id}` : null;
 
         document.querySelectorAll('.terminal-pin').forEach(p => p.classList.remove('snap-target'));
@@ -1028,6 +1080,7 @@ class CircuitApp {
         }
 
         this.updateMultimeter();
+        this.renderMultimeterCords();
       }
     };
 
@@ -1245,14 +1298,87 @@ class CircuitApp {
             this.future = [];
             this.updateUndoRedoButtons();
           }
+        } else if (!this.compDrag.moved && (Date.now() - (this.compDrag.startTime || 0) < 550)) {
+          // Clean TAP / CLICK on component body (not a drag)
+          const now = Date.now();
+          const isDoubleTap = (this._lastTapCompId === comp.id && (now - (this._lastTapTime || 0) < 350));
+          if (isDoubleTap) {
+            this._lastTapTime = 0;
+            this._lastTapCompId = null;
+            // Quick double-tap: exclusively open Technical Specifications Modal!
+            this.showTechnicalSpecificationsModal(comp);
+          } else {
+            // Single tap: record tap timestamp & ID
+            this._lastTapTime = now;
+            this._lastTapCompId = comp.id;
+
+            // Single tap toggle interaction for switches and controls
+            if (comp.type === 'switch') {
+              this.pushHistory();
+              comp.state.closed = !comp.state.closed;
+              if (window.sounds && typeof window.sounds.playSwitch === 'function') {
+                window.sounds.playSwitch(comp.state.closed);
+              }
+              this.updateComponentVisual(comp);
+              this.evaluateCircuit();
+            } else if (comp.type === 'pushbutton') {
+              this.pushHistory();
+              comp.state.pressed = !comp.state.pressed;
+              if (window.sounds && typeof window.sounds.playSwitch === 'function') {
+                window.sounds.playSwitch(comp.state.pressed);
+              }
+              this.updateComponentVisual(comp);
+              this.evaluateCircuit();
+            } else if (comp.type === 'twowayswitch') {
+              this.pushHistory();
+              comp.state.position = (comp.state.position === 1 ? 2 : 1);
+              if (window.sounds && typeof window.sounds.playSwitch === 'function') {
+                window.sounds.playSwitch(true);
+              }
+              this.updateComponentVisual(comp);
+              this.evaluateCircuit();
+            } else if (comp.type === 'ldr') {
+              const curLux = (comp.state.ambientLux !== undefined) ? comp.state.ambientLux : (comp.state.lux || 0);
+              let nextLux = 0;
+              if (curLux < 2) nextLux = 35;
+              else if (curLux < 15) nextLux = 80;
+              else nextLux = 0;
+
+              this.pushHistory();
+              comp.state.ambientLux = nextLux;
+              comp.state.lux = nextLux;
+              if (this.solver) this.solver.updateLDRSensors();
+              this.updateComponentVisual(comp);
+              this.evaluateCircuit();
+              if (window.sounds && window.sounds.playSwitch) window.sounds.playSwitch(nextLux > 10);
+            }
+
+            this.selectComponent(comp, false);
+          }
         }
         this.compDrag = null;
         this.hideTrashZone();
       }
 
       if (this.probeDrag) {
+        const probeName = this.probeDrag.probe;
+        const probe = this.probes[probeName];
+        if (probe && probe.snappedPin) {
+          const parts = probe.snappedPin.split(':');
+          const snapPos = this.getPinAbsolutePos(parts[0], parts[1]);
+          if (snapPos) {
+            probe.x = snapPos.x - 16;
+            probe.y = snapPos.y - 5;
+            if (this.probeDrag.element) {
+              this.probeDrag.element.style.left = `${probe.x}px`;
+              this.probeDrag.element.style.top = `${probe.y}px`;
+            }
+          }
+        }
         this.probeDrag = null;
         document.querySelectorAll('.terminal-pin').forEach(p => p.classList.remove('snap-target'));
+        this.updateMultimeter();
+        this.renderMultimeterCords();
         this.updateChecklist();
         this.checkWinCondition(this.solver.status);
       }
@@ -1262,6 +1388,7 @@ class CircuitApp {
     window.addEventListener('mouseup', handlePointerUp);
     window.addEventListener('touchmove', handlePointerMove, { passive: false });
     window.addEventListener('touchend', handlePointerUp);
+    window.addEventListener('touchcancel', handlePointerUp);
 
     // Stage Gaming Ground Zoom, Pinch, and Pan Listeners
     if (stage) {
@@ -1530,6 +1657,117 @@ class CircuitApp {
     }
   }
 
+  previousTask() {
+    const now = Date.now();
+    if (this._lastSkipTime && (now - this._lastSkipTime) < 250) {
+      return;
+    }
+    this._lastSkipTime = now;
+
+    // Stop any speech audio immediately
+    if (window.sounds && typeof window.sounds.stopSpeech === 'function') {
+      window.sounds.stopSpeech();
+    }
+    this.hideCharacterSpeechBubble();
+
+    if (this.mode !== 'curriculum') {
+      this.mode = 'curriculum';
+      if (this.dom.modeCurriculumBtn) this.dom.modeCurriculumBtn.classList.add('active');
+      if (this.dom.modeSandboxBtn) this.dom.modeSandboxBtn.classList.remove('active');
+      const nav = document.getElementById('level-nav-container');
+      const objCard = document.getElementById('objective-card');
+      if (nav) nav.style.display = 'flex';
+      if (objCard) objCard.style.display = 'block';
+    }
+
+    if (this.currentLevelIndex <= 0) {
+      if (typeof this.showToast === 'function') {
+        this.showToast('You are already at the beginning of the curriculum.', 'info');
+      }
+      return;
+    }
+
+    const prevIndex = this.currentLevelIndex - 1;
+    if (window.sounds && typeof window.sounds.playClick === 'function') {
+      try { window.sounds.playClick(); } catch (e) { }
+    }
+
+    this.loadLevel(prevIndex);
+    if (window.GAME_LEVELS && window.GAME_LEVELS[prevIndex]) {
+      this.showTaskAnnouncement(window.GAME_LEVELS[prevIndex]);
+    }
+  }
+
+  toggleTaskModal(forceOpen) {
+    const modal = this.dom.taskDetailModal || document.getElementById('task-detail-modal');
+    if (!modal) return;
+
+    const shouldOpen = (forceOpen !== undefined) ? !!forceOpen : (modal.style.display === 'none');
+    if (!shouldOpen) {
+      modal.style.display = 'none';
+      return;
+    }
+
+    const level = window.GAME_LEVELS ? window.GAME_LEVELS[this.currentLevelIndex] : null;
+    if (!level) return;
+
+    if (this.dom.taskModalBadge) {
+      this.dom.taskModalBadge.textContent = level.badge ? `TASK: ${level.badge.toUpperCase()}` : `LEVEL ${level.id || (this.currentLevelIndex + 1)}`;
+    }
+    if (this.dom.taskModalTitle) {
+      this.dom.taskModalTitle.textContent = level.title || `Level ${this.currentLevelIndex + 1}`;
+    }
+    if (this.dom.taskModalSubtitle) {
+      this.dom.taskModalSubtitle.textContent = level.summary || level.category || 'Circuit Building Mission';
+    }
+    if (this.dom.taskModalInstructions) {
+      this.dom.taskModalInstructions.textContent = level.instructions || '';
+    }
+    if (this.dom.taskModalTheory) {
+      this.dom.taskModalTheory.textContent = level.theory || 'Build an unbroken conductive path from positive to negative terminal.';
+      if (this.dom.taskModalTheorySection) {
+        this.dom.taskModalTheorySection.style.display = level.theory ? 'block' : 'none';
+      }
+    }
+
+    // Render interactive task checklist
+    this.renderTaskModalChecklist(level);
+
+    modal.style.display = 'flex';
+    if (window.sounds && typeof window.sounds.playClick === 'function') {
+      try { window.sounds.playClick(); } catch (e) { }
+    }
+  }
+
+  renderTaskModalChecklist(level) {
+    const container = this.dom.taskModalChecklist || document.getElementById('task-modal-checklist');
+    if (!container || !level) return;
+
+    let items = [];
+    if (typeof level.getTasks === 'function') {
+      items = level.getTasks(this.solver.status, this.components, this);
+    } else if (Array.isArray(level.tasks)) {
+      items = level.tasks.map(t => {
+        if (typeof t === 'function') return t(this.solver.status, this.components, this);
+        if (typeof t.done === 'function') return { text: t.desc || t.text, done: !!t.done(this.components, this.solver.status, this) };
+        if (typeof t.check === 'function') return { text: t.text, done: !!t.check(this.solver.status, this.components, this) };
+        return { text: t.text || t.desc, done: false };
+      });
+    } else {
+      items = [
+        { text: 'Connect closed circuit loop with wires', done: this.solver.status.isComplete },
+        { text: 'Safely power all required components', done: this.solver.status.activeComponents && this.solver.status.activeComponents.size > 0 }
+      ];
+    }
+
+    container.innerHTML = items.map(item => `
+      <div class="task-modal-checklist-item ${item.done ? 'is-complete' : 'is-pending'}">
+        <span class="checklist-bullet">${item.done ? '✓' : '○'}</span>
+        <span class="checklist-item-text">${item.text}</span>
+      </div>
+    `).join('');
+  }
+
   showTaskAnnouncement(level) {
     if (!level) return;
     let toast = document.getElementById('task-toast');
@@ -1619,7 +1857,18 @@ class CircuitApp {
     if (Array.isArray(level.initialComponents)) {
       level.initialComponents.forEach(spec => {
         if (spec.type === 'multimeter') return; // Menu bar multimeter is used instead of canvas component!
-        this.spawnComponent(spec.type, spec.x, spec.y, spec.id, spec.stateProps);
+        const comp = this.spawnComponent(spec.type, spec.x, spec.y, spec.id, spec.stateProps);
+        if (comp && spec.rotation) {
+          comp.rotation = (spec.rotation % 360 + 360) % 360;
+          const el = document.getElementById(`node-${comp.id}`);
+          if (el) {
+            const scale = comp.scale !== undefined ? comp.scale : 1.0;
+            el.style.transform = `rotate(${comp.rotation}deg) scale(${scale})`;
+            el.style.transformOrigin = 'center center';
+            el.style.setProperty('--comp-counter-rot', `${-comp.rotation}deg`);
+          }
+          this.updateComponentVisual(comp);
+        }
       });
     }
 
@@ -1672,11 +1921,22 @@ class CircuitApp {
 
     const isWon = level.checkWin(this.solver.status, this.components, this);
 
-    const items = [
-      { text: 'Place & position components', done: this.components.length > 0 },
-      { text: 'Connect closed circuit loop with wires', done: this.solver.status.isComplete },
-      { text: 'Activate target component correctly', done: isWon }
-    ];
+    let items;
+    if (typeof level.getTasks === 'function') {
+      items = level.getTasks(this.solver.status, this.components, this);
+    } else if (Array.isArray(level.tasks)) {
+      items = level.tasks.map(t => {
+        if (typeof t === 'function') return t(this.solver.status, this.components, this);
+        if (typeof t.check === 'function') return { text: t.text, done: !!t.check(this.solver.status, this.components, this) };
+        return t;
+      });
+    } else {
+      items = [
+        { text: 'Place & position components', done: this.components.length > 0 },
+        { text: 'Connect closed circuit loop with wires', done: this.solver.status.isComplete },
+        { text: 'Activate target component correctly', done: isWon }
+      ];
+    }
 
     items.forEach(item => {
       const row = document.createElement('div');
@@ -1687,6 +1947,12 @@ class CircuitApp {
       `;
       list.appendChild(row);
     });
+
+    // Also synchronize open Task Details modal checklist
+    const taskModal = this.dom.taskDetailModal || document.getElementById('task-detail-modal');
+    if (taskModal && taskModal.style.display !== 'none') {
+      this.renderTaskModalChecklist(level);
+    }
   }
 
   spawnComponent(type, x = null, y = null, forcedId = null, stateProps = {}) {
@@ -1834,6 +2100,34 @@ class CircuitApp {
         pinEl.dataset.role = pin.id;
         pinEl.title = termRole;
         pinEl.innerHTML = `<div class="terminal-pin-inner ${polClass}"><span class="pin-sign">${num}</span></div>`;
+      } else if (comp.type === 'relay') {
+        let label = pin.id.toUpperCase();
+        let title = 'Relay Terminal';
+        let polClass = 'pin-neutral';
+        if (pin.id === 'coil1') {
+          label = '+';
+          title = 'Coil Terminal 1 (5V DC Solenoid Input)';
+          polClass = 'pin-pos';
+        } else if (pin.id === 'coil2') {
+          label = '−';
+          title = 'Coil Terminal 2 (5V DC Solenoid Ground/Return)';
+          polClass = 'pin-neg';
+        } else if (pin.id === 'com') {
+          label = 'C';
+          title = 'Common Contact (COM)';
+          polClass = 'pin-neutral';
+        } else if (pin.id === 'no') {
+          label = 'NO';
+          title = 'Normally Open Contact (NO) - Closes when coil energized';
+          polClass = 'pin-neutral';
+        } else if (pin.id === 'nc') {
+          label = 'NC';
+          title = 'Normally Closed Contact (NC) - Closed when coil at rest';
+          polClass = 'pin-neutral';
+        }
+        pinEl.dataset.role = pin.id;
+        pinEl.title = title;
+        pinEl.innerHTML = `<div class="terminal-pin-inner ${polClass}"><span class="pin-sign">${label}</span></div>`;
       } else if (comp.type && comp.type.startsWith('gate_')) {
         if (pin.id === 'in_a') {
           pinEl.dataset.role = 'in_a';
@@ -2055,6 +2349,25 @@ class CircuitApp {
           }
         } catch (e) {
           console.warn('Inspector update warning:', e);
+        }
+        if (std >= 180) {
+          for (const c of this.components) {
+            if (c.type === 'led' && (c.state.burnt || c.state.burning)) {
+              c.state.burnt = false;
+              c.state.burning = false;
+              c.state.crying = false;
+              c.state.burnReason = '';
+              const nodeEl = document.getElementById(`node-${c.id}`);
+              if (nodeEl) {
+                nodeEl.classList.remove('is-burning');
+                nodeEl.classList.remove('character-crying-shake');
+              }
+              this.updateComponentVisual(c);
+            }
+          }
+          if (this.dom.failureModal && this.dom.failureModal.style.display === 'flex') {
+            this.dom.failureModal.style.display = 'none';
+          }
         }
         this.evaluateCircuit();
       };
@@ -3664,10 +3977,22 @@ class CircuitApp {
         e.target.closest('.ac-input-container') || e.target.closest('.ldr-res-badge') ||
         e.target.closest('.cap-stepper-container')) return;
 
+      // Deduplicate touch & synthetic mousedown events on mobile devices
+      if (e.type === 'touchstart') {
+        this._lastTouchTime = Date.now();
+      } else if (e.type === 'mousedown') {
+        if (this._lastTouchTime && (Date.now() - this._lastTouchTime < 600)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+
       // Cancel any background pan started from same touch event bubbling
       if (this.panDrag) this.panDrag = null;
 
       const coords = this.getEventStageCoords(e);
+      const clientPt = (e.touches && e.touches[0]) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY };
 
       // Digital Logic Gate input toggle buttons on component body
       if (comp.type && comp.type.startsWith('gate_')) {
@@ -3706,50 +4031,6 @@ class CircuitApp {
         }
       }
 
-      // Single Pole switch toggle
-      if (comp.type === 'switch') {
-        this.pushHistory();
-        comp.state.closed = !comp.state.closed;
-        window.sounds.playSwitch(comp.state.closed);
-        this.updateComponentVisual(comp);
-        this.evaluateCircuit();
-      }
-
-      // Pushbutton switch toggle / press
-      if (comp.type === 'pushbutton') {
-        this.pushHistory();
-        comp.state.pressed = !comp.state.pressed;
-        window.sounds.playSwitch(comp.state.pressed);
-        this.updateComponentVisual(comp);
-        this.evaluateCircuit();
-      }
-
-      // Two-way switch toggle (SPDT: COM <-> L1 or COM <-> L2)
-      if (comp.type === 'twowayswitch') {
-        this.pushHistory();
-        comp.state.position = (comp.state.position === 1 ? 2 : 1);
-        window.sounds.playSwitch(true);
-        this.updateComponentVisual(comp);
-        this.evaluateCircuit();
-      }
-
-      // LDR Photo-Sensor: Click to toggle illumination (Daylight <-> Darkness)
-      if (comp.type === 'ldr') {
-        const curLux = (comp.state.ambientLux !== undefined) ? comp.state.ambientLux : (comp.state.lux || 0);
-        let nextLux = 0;
-        if (curLux < 2) nextLux = 35; // Switch to daylight (35 Lux)
-        else if (curLux < 15) nextLux = 80; // Switch to direct torch / bright sun (80 Lux)
-        else nextLux = 0; // Switch to darkness (0 Lux)
-
-        this.pushHistory();
-        comp.state.ambientLux = nextLux;
-        comp.state.lux = nextLux;
-        if (this.solver) this.solver.updateLDRSensors();
-        this.updateComponentVisual(comp);
-        this.evaluateCircuit();
-        if (window.sounds && window.sounds.playSwitch) window.sounds.playSwitch(nextLux > 10);
-      }
-
       this.selectComponent(comp, false);
       this.compDrag = {
         comp,
@@ -3757,7 +4038,11 @@ class CircuitApp {
         startY: comp.y,
         startSnapshot: this.takeSnapshot(),
         offsetX: coords.x - comp.x,
-        offsetY: coords.y - comp.y
+        offsetY: coords.y - comp.y,
+        startClientX: clientPt.x,
+        startClientY: clientPt.y,
+        startTime: Date.now(),
+        moved: false
       };
       this.showTrashZone();
     };
@@ -3765,45 +4050,20 @@ class CircuitApp {
     node.addEventListener('mousedown', onNodeStart);
     node.addEventListener('touchstart', onNodeStart, { passive: false });
 
-    node.title = `${def.name} (Right-click for Technical Specifications ⚙️)`;
+    node.title = `${def.name} (Double-tap or right-click for Technical Specifications ⚙️)`;
 
-    // Right-click exclusively triggers the component's Technical Specifications Data Sheet
+    // Desktop: Right-click triggers the component's Technical Specifications Data Sheet
     node.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.showTechnicalSpecificationsModal(comp);
     });
 
-    // Mobile / Touchscreen: Long-press (700ms) acts as right-click for specifications
-    // Note: drag is tracked separately; if touch moved > 8px the timer is cancelled
-    let touchTimer = null;
-    node.addEventListener('touchstart', (e) => {
-      if (e.touches && e.touches.length === 1) {
-        const startX = e.touches[0].clientX;
-        const startY = e.touches[0].clientY;
-        touchTimer = setTimeout(() => {
-          // Only show specs if user hasn't moved (i.e. no drag started)
-          if (!this.compDrag || this.compDrag.comp.id !== comp.id) {
-            this.showTechnicalSpecificationsModal(comp);
-          }
-          touchTimer = null;
-        }, 700);
-      }
-    }, { passive: true });
-
-    node.addEventListener('touchmove', () => {
-      if (touchTimer) {
-        clearTimeout(touchTimer);
-        touchTimer = null;
-      }
-    }, { passive: true });
-
-    node.addEventListener('touchend', () => {
-      if (touchTimer) {
-        clearTimeout(touchTimer);
-        touchTimer = null;
-      }
-    }, { passive: true });
+    // Desktop: Quick double-click opens Technical Specifications Modal
+    node.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      this.showTechnicalSpecificationsModal(comp);
+    });
 
     node.addEventListener('mouseenter', () => {
       this.updateTopbarComponentPill(comp);
@@ -4381,6 +4641,18 @@ class CircuitApp {
         } else {
           badge.innerHTML = `<span style="color:#94a3b8;font-weight:700;">○ CUTOFF</span> · <span class="badge-v">${isNPN ? 'Vce' : 'Vec'}: ${vce.toFixed(1)}V</span> · <span class="badge-i">Ic: 0mA</span> · <span style="color:#94a3b8;">${isNPN ? 'Vbe' : 'Veb'}: ${vbe.toFixed(2)}V</span>`;
         }
+      } else if (comp.type === 'relay') {
+        const isEnergized = !!comp.state.energized;
+        const vCoil = (comp.state.coilVoltage || 0).toFixed(1);
+        const iCoil = ((comp.state.coilCurrent || 0) * 1000).toFixed(0);
+        badge.classList.toggle('active-power', isEnergized);
+        if (comp.state.burnt) {
+          badge.innerHTML = `<span style="color: #ef4444; font-weight: 800;">COIL BURNT</span>`;
+        } else if (isEnergized) {
+          badge.innerHTML = `<span style="color: #22c55e; font-weight: 900;">● ENERGIZED (NO)</span> · <span class="badge-v">${vCoil}V</span> · <span class="badge-i">${iCoil}mA</span>`;
+        } else {
+          badge.innerHTML = `<span style="color: #94a3b8; font-weight: 700;">○ STANDBY (NC)</span> · <span class="badge-v">${vCoil}V</span>`;
+        }
       } else if (comp.type && comp.type.startsWith('gate_')) {
         const inA = comp.state.inputA ? 1 : 0;
         const inB = comp.state.inputB ? 1 : 0;
@@ -4644,6 +4916,14 @@ class CircuitApp {
       this.showInspector(target);
     }
     this.updateTopbarComponentPill(target);
+  }
+
+  hideInspector() {
+    this.selectedComponent = null;
+    if (this.dom && this.dom.inspectorCard) {
+      this.dom.inspectorCard.style.display = 'none';
+    }
+    this.updateTopbarComponentPill(null);
   }
 
   showInspector(comp) {
@@ -4973,6 +5253,25 @@ class CircuitApp {
         if (this.ohmsCalcActive) {
           this.updateOhmsCalcWindow();
         }
+        if (std >= 180) {
+          for (const c of this.components) {
+            if (c.type === 'led' && (c.state.burnt || c.state.burning)) {
+              c.state.burnt = false;
+              c.state.burning = false;
+              c.state.crying = false;
+              c.state.burnReason = '';
+              const nodeEl = document.getElementById(`node-${c.id}`);
+              if (nodeEl) {
+                nodeEl.classList.remove('is-burning');
+                nodeEl.classList.remove('character-crying-shake');
+              }
+              this.updateComponentVisual(c);
+            }
+          }
+          if (this.dom.failureModal && this.dom.failureModal.style.display === 'flex') {
+            this.dom.failureModal.style.display = 'none';
+          }
+        }
         this.evaluateCircuit();
       };
 
@@ -5054,6 +5353,29 @@ class CircuitApp {
         this.evaluateCircuit();
       });
       controls.appendChild(swRow);
+    } else if (comp.type === 'relay') {
+      const relayRow = document.createElement('div');
+      relayRow.className = 'control-row';
+      const isEnergized = !!comp.state.energized;
+      relayRow.innerHTML = `
+        <span>Contact Status</span>
+        <span style="font-weight: 700; font-size: 0.8rem; color: ${isEnergized ? '#22c55e' : '#38bdf8'};">
+          ${isEnergized ? '⚡ ENERGIZED (COM ➔ NO)' : '💤 STANDBY (COM ➔ NC)'}
+        </span>
+      `;
+      controls.appendChild(relayRow);
+
+      const coilRow = document.createElement('div');
+      coilRow.className = 'control-row';
+      const vCoil = (comp.state.coilVoltage || 0).toFixed(2);
+      const iCoil = ((comp.state.coilCurrent || 0) * 1000).toFixed(1);
+      coilRow.innerHTML = `
+        <span>Coil Excitation</span>
+        <span style="font-size: 0.75rem; color: #cbd5e1; font-family: monospace;">
+          ${vCoil}V · ${iCoil}mA (${comp.state.resistance || 70}Ω)
+        </span>
+      `;
+      controls.appendChild(coilRow);
     } else if (comp.type === 'transformer') {
       // 1. Real-Time Telemetry Dashboard
       const transTelem = document.createElement('div');
@@ -8574,6 +8896,35 @@ class CircuitApp {
         ];
         break;
       }
+      case 'relay': {
+        spec.name = 'Electromechanical SPDT Power Relay (5-Pin, 5V DC)';
+        spec.category = 'ELECTROMECHANICAL RELAY';
+        spec.iec = 'IEC 61810-1 / UL 508';
+        spec.icon = '⚡';
+        spec.ratings = [
+          { param: 'Nominal Coil Voltage', symbol: 'V_coil', val: '5.0 V DC', cond: 'Continuous rated duty' },
+          { param: 'Coil Resistance', symbol: 'R_coil', val: '70 Ω ± 10%', cond: '@ 20°C ambient' },
+          { param: 'Nominal Coil Operating Current', symbol: 'I_coil', val: '71.4 mA', cond: 'I = 5V / 70Ω' },
+          { param: 'Coil Power Dissipation', symbol: 'P_coil', val: '0.36 W (360 mW)', cond: 'Nominal pull-in power' },
+          { param: 'Pull-In / Pick-Up Voltage', symbol: 'V_must_op', val: '≤ 3.75 V DC (75% rated)', cond: 'Armature pulls to NO' },
+          { param: 'Drop-Out / Release Voltage', symbol: 'V_must_rel', val: '≥ 0.50 V DC (10% rated)', cond: 'Armature returns to NC' },
+          { param: 'Contact Rating (Resistive)', symbol: 'I_contact', val: '10 A @ 250V AC / 10 A @ 30V DC', cond: 'Silver alloy AgCdO contacts' },
+          { param: 'Dielectric Insulation Breakdown', symbol: 'V_iso', val: '1500 V AC (Coil to Contact)', cond: 'Galvanic isolation' }
+        ];
+        spec.formulas = [
+          {
+            highlight: 'I_coil = V_coil / R_coil = 5V / 70Ω ≈ 71.4 mA',
+            name: "Coil Drive Ohm's Law",
+            desc: "The electromagnet solenoid coil requires sufficient excitation current (≥ 25mA) to produce magnetic flux."
+          },
+          {
+            highlight: 'F_mag = (μ₀ · N² · I² · A) / (2 · g²)',
+            name: "Maxwell Armature Attractive Force",
+            desc: "When coil voltage reaches the pull-in threshold (≥ 3.5V), magnetic attraction overcomes the mechanical return spring, snapping the COM blade from NC to NO."
+          }
+        ];
+        break;
+      }
       case 'buzzer': {
         spec.name = 'Piezoelectric Electronic Audio Transducer';
         spec.category = 'ACOUSTIC ELECTROMECHANICAL';
@@ -8700,7 +9051,7 @@ class CircuitApp {
     const rect = this.dom.trashDropZone.getBoundingClientRect();
     const pad = 24;
     const pointerIn = (clientX >= rect.left - pad && clientX <= rect.right + pad &&
-                       clientY >= rect.top - pad && clientY <= rect.bottom + pad);
+      clientY >= rect.top - pad && clientY <= rect.bottom + pad);
     if (pointerIn) return true;
 
     if (this.compDrag && this.compDrag.comp) {
@@ -8708,7 +9059,7 @@ class CircuitApp {
       if (compEl) {
         const cRect = compEl.getBoundingClientRect();
         const overlaps = !(cRect.right < rect.left - pad || cRect.left > rect.right + pad ||
-                           cRect.bottom < rect.top - pad || cRect.top > rect.bottom + pad);
+          cRect.bottom < rect.top - pad || cRect.top > rect.bottom + pad);
         if (overlaps) return true;
       }
     }
@@ -9210,7 +9561,7 @@ class CircuitApp {
     // Audio Feedback for Motors, Pulsing Buzzer & Sparks
     const activeMotor = this.components.find(c => c.type === 'motor' && c.state.powered && (c.state.rpm || 0) > 0 && !c.state.burnt);
     const motorRpm = activeMotor ? (activeMotor.state.rpm || 0) : 0;
-    const motorSpeed = activeMotor ? Math.min(1.0, Math.max(0.01, motorRpm / 12000)) : 0;
+    const motorSpeed = activeMotor ? Math.min(1.0, Math.max(0.01, motorRpm / 15000)) : 0;
     window.sounds.setMotorState(!!activeMotor && motorRpm > 0, motorSpeed);
 
     const activeBuzzers = this.components.filter(c => c.type === 'buzzer' && c.state.powered && c.state.sounding && !c.state.burnt);
@@ -9251,6 +9602,9 @@ class CircuitApp {
       this.triggerComponentBurn(candidate, candidate.state.burnReason);
     }
 
+    // Dynamic border color reaction: Red on danger connection or component blast/burnout, Green when normal
+    this.updateDangerBorderState(status);
+
     // Update Ribbon Status Display
     this.updateStatusRibbon(status);
 
@@ -9276,68 +9630,70 @@ class CircuitApp {
     }
   }
 
+  updateDangerBorderState(status) {
+    const hasBurnt = this.components && this.components.some(c => c.state && (c.state.burnt || c.state.burning || c.state.candidateBurn || c.state.blown || c.state.fuseBlown));
+    const isDanger = !!(status && (status.isShortCircuit || status.circuitFailed)) || hasBurnt;
+    if (isDanger) {
+      document.body.classList.add('circuit-danger-active');
+    } else {
+      document.body.classList.remove('circuit-danger-active');
+    }
+  }
+
   triggerComponentBurn(comp, reason) {
     comp.state.burning = true;
-    comp.state.crying = true;
     delete comp.state.candidateBurn;
+    document.body.classList.add('circuit-danger-active');
+
+    // Immediately stop any voice offer or speech synthesis
+    if (window.sounds && typeof window.sounds.stopSpeech === 'function') {
+      window.sounds.stopSpeech();
+    }
+    this.hideCharacterSpeechBubble();
+    if (this.dom.burnToast) this.dom.burnToast.style.display = 'none';
 
     const nodeEl = document.getElementById(`node-${comp.id}`);
     if (nodeEl) {
       nodeEl.classList.add('is-burning');
-      nodeEl.classList.add('character-crying-shake');
     }
 
     this.updateComponentVisual(comp);
 
-    const profile = window.CHARACTER_PROFILES ? window.CHARACTER_PROFILES[comp.type] : null;
-    const def = window.COMPONENT_DEFINITIONS[comp.type];
-    const charNick = profile ? profile.nick.toUpperCase() : def.name.toUpperCase();
-    const cryText = comp.state.cryDialogue || (profile ? profile.dialogues.cryingWarning : reason);
-
-    // Show crying speech bubble right above the weeping character!
-    this.showCharacterSpeechBubble(comp, cryText, 'crying', true);
-
-    // Play panic crying audio
-    window.sounds.playCry();
-
-    this.dom.burnToastTitle.textContent = `😭 ${charNick} IS CRYING! OVERVOLTAGE HAZARD!`;
-    this.dom.burnToastDesc.textContent = cryText;
-    this.dom.burnProgressBar.style.transition = 'none';
-    this.dom.burnProgressBar.style.width = '100%';
-
-    this.dom.burnToast.style.display = 'flex';
-
-    setTimeout(() => {
-      this.dom.burnProgressBar.style.transition = 'width 2.8s linear';
-      this.dom.burnProgressBar.style.width = '0%';
-    }, 50);
-
-    // Give children time (~2.9s) to watch the crying tears, burning flames, smoke, and sparks!
+    // Brief visual reaction (~750ms) with sparks/smoke, followed by explosion blast and single failure modal
     setTimeout(() => {
       comp.state.burning = false;
-      comp.state.crying = false;
       comp.state.burnt = true;
       if (nodeEl) {
         nodeEl.classList.remove('is-burning');
-        nodeEl.classList.remove('character-crying-shake');
       }
-      this.dom.burnToast.style.display = 'none';
 
-      window.sounds.playBurn();
-
-      const deathText = (profile && profile.dialogues.burningDeath) || "PO-P-PING! I have burned to ashes! 💥";
-      this.showCharacterSpeechBubble(comp, deathText, 'burnt', true);
+      // Play blasting sound only - no voice
+      if (window.sounds && typeof window.sounds.playBurn === 'function') {
+        window.sounds.playBurn();
+      }
 
       this.updateComponentVisual(comp);
-      this.showInspector(comp);
       this.evaluateCircuit();
 
-      // Show Failure Modal explaining why circuit failed
+      // Display ONLY ONE dialogue box explaining clearly why the component has burned out
       this.showFailureModal(comp, reason);
-    }, 2900);
+    }, 750);
   }
 
   showFailureModal(comp, reason, diagnostic = null) {
+    // Dismiss any other dialogs, speech bubbles, toasts, or inspector panels so ONLY the Failure Modal appears
+    this.hideCharacterSpeechBubble();
+    this.hideInspector();
+    if (this.dom.burnToast) this.dom.burnToast.style.display = 'none';
+    if (this.dom.victoryModal) this.dom.victoryModal.style.display = 'none';
+    if (this.dom.victoryCompactDock) this.dom.victoryCompactDock.style.display = 'none';
+    if (this.dom.hintModal) this.dom.hintModal.style.display = 'none';
+    if (this.dom.techSpecsModal) this.dom.techSpecsModal.style.display = 'none';
+    if (this.dom.resistorCodesModal) this.dom.resistorCodesModal.style.display = 'none';
+    if (window.sounds && typeof window.sounds.stopSpeech === 'function') {
+      window.sounds.stopSpeech();
+    }
+
     let diag = diagnostic || (comp && comp.state && comp.state.faultDiagnostic) || this.solver.status.faultDiagnostic;
     if (!diag) {
       diag = this.solver.diagnoseCircuitFault(this.components, this.wires, (this.mode === 'curriculum') ? window.GAME_LEVELS[this.currentLevelIndex] : null);
@@ -9403,9 +9759,11 @@ class CircuitApp {
     if (this.dom.btnCloseFailureModal) {
       this.dom.btnCloseFailureModal.onclick = () => {
         this.dom.failureModal.style.display = 'none';
+        this.evaluateCircuit();
       };
     }
 
+    document.body.classList.add('circuit-danger-active');
     this.dom.failureModal.style.display = 'flex';
   }
 
@@ -9476,6 +9834,16 @@ class CircuitApp {
     if (this.mode !== 'curriculum' || this.levelCompleted) return;
     const level = window.GAME_LEVELS[this.currentLevelIndex];
     if (!level) return;
+
+    // The congratulation message / victory dock must work ONLY after full completion of all subtasks!
+    if (Array.isArray(level.tasks) && level.tasks.length > 0) {
+      const allTasksCompleted = level.tasks.every(t => {
+        if (typeof t.done === 'function') return !!t.done(this.components, status, this);
+        if (typeof t.check === 'function') return !!t.check(status, this.components, this);
+        return true;
+      });
+      if (!allTasksCompleted) return;
+    }
 
     if (level.checkWin(status, this.components, this)) {
       this.levelCompleted = true;
@@ -9625,10 +9993,6 @@ class CircuitApp {
         } else if (comp.type === 'rectifier') {
           behaviorText = comp.state.powered ? '⚡ Graetz bridge converting AC input into rectified DC output' : 'Bridge rectifier idle';
         } else if (comp.type === 'function_generator') {
-          behaviorText = comp.state.outputEnabled !== false ? `〰️ Synthesizing ${(comp.state.waveform || 'sine').toUpperCase()} (${(comp.state.frequency || 1000)}Hz, ${(comp.state.amplitudeVpp || 10)}Vpp)` : 'Signal Output Disabled';
-        } else if (comp.type === 'inductor') {
-          behaviorText = comp.state.powered ? `🌀 Inductive choke (L = ${(comp.state.inductanceMh || 10)}mH, E = ${((comp.state.storedEnergy || 0) * 1000).toFixed(2)}mJ, DCR = ${(comp.state.dcr || 0.8)}Ω)` : 'Choke idle';
-        } else if (comp.type === 'capacitor' || comp.type === 'ceramic_capacitor') {
           const capUf = comp.type === 'ceramic_capacitor' ? (comp.state.capacitanceUf || 0.1) : (comp.state.capacitance || 1000);
           behaviorText = comp.state.powered ? `🔋 Storing charge: ${(comp.state.storedVoltage || 0).toFixed(2)}V (${(comp.state.chargePercent || 0)}% of rating, C = ${capUf}µF)` : 'Discharged';
         } else if (comp.type === 'ammeter') {
@@ -11581,6 +11945,53 @@ class CircuitApp {
           }
         }
       }
+
+      // K. Across 5V 5-Pin SPDT Relay
+      if (comp.type === 'relay') {
+        const isCoil = (rPinId === 'coil1' && bPinId === 'coil2') || (rPinId === 'coil2' && bPinId === 'coil1');
+        const isComNo = (rPinId === 'com' && bPinId === 'no') || (rPinId === 'no' && bPinId === 'com');
+        const isComNc = (rPinId === 'com' && bPinId === 'nc') || (rPinId === 'nc' && bPinId === 'com');
+        const isEnergized = !!comp.state.energized;
+
+        if (isCoil) {
+          const coilR = comp.state.resistance || 70;
+          switch (mode) {
+            case 'ohm': return { value: `${coilR.toFixed(1)} Ω`, status: `Relay Solenoid Coil Resistance (${coilR} Ω)` };
+            case 'cont': return { value: `${coilR.toFixed(1)} Ω`, status: `Coil resistance (${coilR}Ω) exceeds 15Ω continuity threshold` };
+            case 'dcv': {
+              const vd = comp.state.coilVoltage || comp.state.voltageDrop || 0;
+              const isPos = rPinId === 'coil1';
+              return { value: `${isPos ? '+' : '-'}${vd.toFixed(2)} V`, status: `Relay Coil Drive Voltage (${vd.toFixed(2)}V) - ${isEnergized ? 'ENERGIZED' : 'STANDBY'}` };
+            }
+            case 'acv': return { value: '0.00 V~', status: 'DC Relay Coil' };
+            case 'dca': {
+              const ma = (comp.state.coilCurrent || comp.state.current || 0) * 1000;
+              return { value: `${ma.toFixed(1)} mA`, status: 'Relay Coil Excitation Current' };
+            }
+            case 'diode': return { value: '0.00 V SHORT', status: 'Inductive copper coil' };
+          }
+        } else if (isComNo) {
+          const closed = isEnergized;
+          switch (mode) {
+            case 'ohm': return closed ? { value: '0.05 Ω', status: 'Relay COM-NO Contact CLOSED (Armature Pulled In)' } : { value: 'O.L MΩ', status: 'Relay COM-NO Contact OPEN (Standby)' };
+            case 'cont': return closed ? { value: '0.0 Ω  BEEP', status: 'Relay COM-NO CLOSED: Full Continuity!', isBeeping: true } : { value: 'O.L', status: 'Relay COM-NO OPEN: Open Circuit' };
+            case 'dcv': return closed ? { value: '0.00 V', status: 'Contacts CLOSED: 0.00V Drop' } : { value: `${(comp.state.voltageDrop || 0).toFixed(2)} V`, status: 'Contacts OPEN' };
+            case 'acv': return { value: closed ? '0.00 V~' : '230 V~', status: closed ? '0V drop' : 'Open AC gap' };
+            case 'dca': return closed ? { value: `${((comp.state.current || 0) * 1000).toFixed(1)} mA`, status: 'Contact Current (COM-NO)' } : { value: '0.0 mA', status: 'Open Contact' };
+            case 'diode': return closed ? { value: '0.00 V SHORT', status: 'Closed Contacts' } : { value: 'O.L', status: 'Open Contacts' };
+          }
+        } else if (isComNc) {
+          const closed = !isEnergized;
+          switch (mode) {
+            case 'ohm': return closed ? { value: '0.05 Ω', status: 'Relay COM-NC Contact CLOSED (Normally-Closed At Rest)' } : { value: 'O.L MΩ', status: 'Relay COM-NC Contact OPEN (Armature Energized)' };
+            case 'cont': return closed ? { value: '0.0 Ω  BEEP', status: 'Relay COM-NC CLOSED: Full Continuity!', isBeeping: true } : { value: 'O.L', status: 'Relay COM-NC OPEN: Open Circuit' };
+            case 'dcv': return closed ? { value: '0.00 V', status: 'Contacts CLOSED: 0.00V Drop' } : { value: `${(comp.state.voltageDrop || 0).toFixed(2)} V`, status: 'Contacts OPEN' };
+            case 'acv': return { value: closed ? '0.00 V~' : '230 V~', status: closed ? '0V drop' : 'Open AC gap' };
+            case 'dca': return closed ? { value: `${((comp.state.current || 0) * 1000).toFixed(1)} mA`, status: 'Contact Current (COM-NC)' } : { value: '0.0 mA', status: 'Open Contact' };
+            case 'diode': return closed ? { value: '0.00 V SHORT', status: 'Closed Contacts' } : { value: 'O.L', status: 'Open Contacts' };
+          }
+        }
+      }
     }
 
     // 2. Probing across arbitrary nets
@@ -12370,14 +12781,18 @@ class CircuitApp {
           esr = comp.state.esr || 0.010;
           comp.state.esr = esr;
         } else {
-          const capVal = comp.state.capacitance || 1000;
+          let capVal = comp.state.capacitance || 1000;
+          if (capVal < 1) capVal = capVal * 1e6; // Handle values set in Farads (e.g. 0.001 F -> 1000 µF)
           capFarads = capVal * 1e-6;
           esr = comp.state.esr || (window.getElectrolyticESR ? window.getElectrolyticESR(capVal, maxV) : 0.08);
           comp.state.esr = esr;
         }
 
         // 1. RC Time Constant Exponential Discharge: V(t) = V0 * exp(-dt / tau) where tau = (R_load + ESR) * C
-        if (i > 0.00001 && storedV > 0.01) {
+        const isCharging = !!comp.state.chargingFromSupply;
+        if (isCharging) {
+          // Being charged from DC power supply or battery — maintain charge!
+        } else if (i > 0.00001 && storedV > 0.01) {
           const rLoad = Math.max(0.2, (storedV / Math.max(0.00001, i)));
           const tau = Math.max(0.000001, (rLoad + esr) * capFarads);
           const decay = Math.exp(-dt / tau);
@@ -12385,12 +12800,13 @@ class CircuitApp {
           comp.state.storedVoltage = (storedV * decay < 0.02) ? 0 : (storedV * decay);
           comp.state.chargePercent = Math.min(100, Math.round((comp.state.storedVoltage / maxV) * 100));
           needsSolve = true;
-        } else if (storedV > 0.02 && !comp.state.powered) {
-          // Open-circuit self-discharge via dielectric insulation leakage (tau ~ 600s to 1200s)
-          const tauLeak = isCeramic ? 1200.0 : 600.0;
-          const leakDecay = Math.exp(-dt / tauLeak);
-          comp.state.storedVoltage = Math.max(0, storedV * leakDecay);
+        } else if (storedV > 0.01) {
+          // Sub-barrier or open-circuit bleed: decay smoothly to 0 based on RC time constant
+          const tauBleed = Math.max(0.05, (500 + esr) * capFarads);
+          const leakDecay = Math.exp(-dt / tauBleed);
+          comp.state.storedVoltage = (storedV * leakDecay < 0.02) ? 0 : (storedV * leakDecay);
           comp.state.chargePercent = Math.min(100, Math.round((comp.state.storedVoltage / maxV) * 100));
+          needsSolve = true;
         }
 
         const curV = comp.state.storedVoltage || 0;
@@ -12463,6 +12879,7 @@ class CircuitApp {
       this.evaluatingCircuit = true;
       try {
         this.solver.solve();
+        this.renderWires();
         for (const comp of this.components) {
           if (comp.type === 'led' || comp.type === 'bulb' || comp.type === 'buzzer' || comp.type === 'motor' || comp.type === 'capacitor' || comp.type === 'ceramic_capacitor') {
             this.updateComponentVisual(comp);
@@ -12652,12 +13069,12 @@ class CircuitApp {
         const rpm = (comp.state.powered && !comp.state.burnt) ? (comp.state.rpm || 0) : 0;
         if (rpm > 0) {
           // Physical rotation mapping directly from calculated RPM:
-          // 12,000 RPM (direct 9V): ~72°/frame (fast spin, smooth animation without wagon-wheel stroboscopic illusion)
+          // 14,800 RPM (direct 9V): ~82°/frame (fast spin, smooth animation without wagon-wheel stroboscopic illusion)
           // 6,000 RPM (mid-resistance): ~38°/frame
           // 3,000 RPM: ~20°/frame
           // 1,000 RPM: ~7°/frame
           // 300 RPM: ~2°/frame
-          const targetSpeed = Math.max(1.0, Math.min(76, Math.pow(rpm / 12000, 0.88) * 72));
+          const targetSpeed = Math.max(1.0, Math.min(88, Math.pow(rpm / 14800, 0.88) * 82));
           // Direction: Clockwise (+1) when positive enters pin1, Counter-Clockwise (-1) when polarity reversed
           const dir = (comp.state.direction === 'ccw') ? -1 : 1;
           const targetVelocity = dir * targetSpeed;

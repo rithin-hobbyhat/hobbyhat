@@ -64,11 +64,25 @@
         </div>
       </div>
 
-      <!-- Active Level Display -->
+      <!-- Active Level Display & Navigation -->
       <div class="header-center" id="level-nav-container">
-        <div class="level-title-row">
-          <div class="level-badge" id="level-badge-display">Level 1 of 28</div>
-          <div class="level-title-display" id="level-title-display">The First Spark (Simple Bulb)</div>
+        <div class="level-nav-group">
+          <button id="btn-pretask" class="action-btn nav-btn pretask-btn" title="Return to Previous Task (Level)">
+            <span class="nav-btn-icon">◀</span>
+            <span class="nav-btn-text">Pre-Task</span>
+          </button>
+          <div class="level-title-row">
+            <div class="level-badge" id="level-badge-display">Level 1</div>
+            <div class="level-title-display" id="level-title-display">The First Spark (Simple Bulb)</div>
+          </div>
+          <button id="btn-task-menu" class="action-btn nav-btn task-btn" title="View Current Task Details & Interactive Checklist">
+            <span class="nav-btn-icon">📋</span>
+            <span class="nav-btn-text">Task</span>
+          </button>
+          <button id="btn-nexttask-top" class="action-btn nav-btn nexttask-btn" title="Skip or Advance to Next Task" onclick="if(window.app) window.app.skipTask()">
+            <span class="nav-btn-text">Next Task</span>
+            <span class="nav-btn-icon">▶</span>
+          </button>
         </div>
       </div>
 
@@ -598,6 +612,7 @@
             <option value="pnp">PNP Transistor</option>
             <option value="ldr">LDR (Photoresistor)</option>
             <option value="solenoid">Solenoid (Electromagnet)</option>
+            <option value="relay">5V Relay (SPDT 5-Pin)</option>
             <option value="rectifier">Full-Wave Bridge Rectifier</option>
             <option value="inductor">Power Inductor (Choke)</option>
             <option value="ammeter">Ammeter (Current)</option>
@@ -829,6 +844,37 @@
   </div>
 
 
+
+  <!-- Current Task & Mission Briefing Modal -->
+  <div class="modal-backdrop" id="task-detail-modal" style="display: none;">
+    <div class="modal-card task-detail-card">
+      <div class="modal-close" id="btn-close-task-modal" title="Close Task (Esc)">✕</div>
+      <div class="task-modal-header">
+        <div class="task-modal-badge" id="task-modal-badge">MISSION BRIEFING</div>
+        <h2 id="task-modal-title">Level 1: The First Spark</h2>
+        <div class="task-modal-subtitle" id="task-modal-subtitle">Direct Current Series Loop</div>
+      </div>
+      <div class="task-modal-body">
+        <div class="task-modal-section">
+          <div class="task-modal-section-title">🎯 MISSION OBJECTIVE</div>
+          <p id="task-modal-instructions" class="task-modal-text"></p>
+        </div>
+        <div class="task-modal-section">
+          <div class="task-modal-section-title">📋 INTERACTIVE TASK CHECKLIST</div>
+          <div id="task-modal-checklist" class="task-modal-checklist-container"></div>
+        </div>
+        <div class="task-modal-section" id="task-modal-theory-section">
+          <div class="task-modal-section-title">💡 ELECTRONICS BRIEFING & THEORY</div>
+          <p id="task-modal-theory" class="task-modal-text"></p>
+        </div>
+      </div>
+      <div class="modal-actions task-modal-actions">
+        <button id="btn-modal-pretask" class="modal-btn secondary" type="button">◀ Pre-Task</button>
+        <button id="btn-close-task-modal-btn" class="modal-btn primary" type="button">Build Circuit ➜</button>
+        <button id="btn-modal-nexttask" class="modal-btn secondary" type="button">Next Task ▶</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Standard Resistor Values & EIA Color Code Reference Modal -->
   <div class="modal-backdrop" id="resistor-codes-modal" style="display: none;">
