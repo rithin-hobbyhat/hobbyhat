@@ -322,7 +322,7 @@ class SoundEffects {
         try {
           this.buzzerGain.gain.cancelScheduledValues(this.ctx.currentTime);
           this.buzzerGain.gain.setValueAtTime(0, this.ctx.currentTime);
-        } catch (e) {}
+        } catch (e) { }
       }
       if (this.buzzerOsc) {
         try {
@@ -420,7 +420,7 @@ class SoundEffects {
     if (this.fgGain && this.ctx) {
       try {
         this.fgGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.04);
-      } catch (e) {}
+      } catch (e) { }
     }
     this.isFgRunning = false;
   }
@@ -653,7 +653,7 @@ class SoundEffects {
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 }

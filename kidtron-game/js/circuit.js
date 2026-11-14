@@ -466,15 +466,8 @@ class CircuitSolver {
 
     // Find all active glowing lights on canvas
     const lights = [];
-    const isStreetLightLevel = typeof window !== 'undefined' && window.app && (
-      (window.app.currentLevel && (window.app.currentLevel.id === 16 || window.app.currentLevel.id === 22)) ||
-      (window.app.currentLevelIndex === 15 || window.app.currentLevelIndex === 21) ||
-      (window.GAME_LEVELS && window.GAME_LEVELS[window.app.currentLevelIndex] && (window.GAME_LEVELS[window.app.currentLevelIndex].id === 16 || window.GAME_LEVELS[window.app.currentLevelIndex].id === 22))
-    );
     for (const comp of this.components) {
       if (comp.state && comp.state.burnt) continue;
-      // In automatic street light systems, the street lamp is shielded / hooded from its own ambient twilight sensor
-      if (isStreetLightLevel && (comp.type === 'bulb' || comp.type === 'led')) continue;
       if (comp.type === 'bulb' && comp.state.powered && (comp.state.brightness || 0) > 0.05) {
         const pwr = comp.state.brightness;
         lights.push({ id: comp.id, name: 'Incandescent Bulb', x: (comp.x || 0) + 78, y: (comp.y || 0) + 71, power: pwr });
@@ -1141,17 +1134,127 @@ class CircuitSolver {
         }
       }
     }
-    const activeRectifiers = this.components.filter(c => c.type === 'rectifier' && c.state.powered && !c.state.burnt);
-    for (const rect of activeRectifiers) {
-      const pNet = find(`${rect.id}:dc_pos`);
-      const nNet = find(`${rect.id}:dc_neg`);
-      if (pNet && nNet && pNet !== nNet) {
-        chains.push({
-          primaryPosRoot: pNet,
-          primaryNegRoot: nNet,
-          totalVoltage: rect.state.voltageDrop || 10.6,
-          batteries: [rect]
-        });
+    const allRectifiers = this.components.filter(c => c.type === 'rectifier' && !c.state.burnt);
+    for (const rect of allRectifiers) {
+      const ac1Net = find(`${rect.id}:ac1`);
+      const ac2Net = find(`${rect.id}:ac2`);
+      let poweringACVolt = 0;
+
+      // Check if powered by transformer secondary
+      const poweringTrans = transformers.find(t => t.state.powered && (
+        (ac1Net === find(`${t.id}:sec1`) && ac2Net === find(`${t.id}:sec2`)) ||
+        (ac1Net === find(`${t.id}:sec2`) && ac2Net === find(`${t.id}:sec1`))
+      ));
+      if (poweringTrans) {
+        poweringACVolt = poweringTrans.state.secondaryV || 12.0;
+      } else {
+        // Check if powered directly by AC source or function generator
+        const poweringAC = chains.find(ch => (
+          ch.batteries && ch.batteries.some(b => b.type === 'ac_source') &&
+          ((ac1Net === ch.primaryPosRoot && ac2Net === ch.primaryNegRoot) ||
+           (ac1Net === ch.primaryNegRoot && ac2Net === ch.primaryPosRoot))
+        ));
+        if (poweringAC) {
+          poweringACVolt = poweringAC.totalVoltage || 230.0;
+        } else if (rect.state.powered) {
+          poweringACVolt = 12.0;
+        }
+      }
+
+      if (poweringACVolt > 0) {
+        rect.state.powered = true;
+        this.status.activeComponents.add(rect.id);
+
+        const vPeakAc = poweringACVolt * Math.SQRT2;
+        const vPeakDc = Math.max(0, vPeakAc - 1.40); // 2 silicon diode forward drops in full-wave bridge
+
+        const pNet = find(`${rect.id}:dc_pos`);
+        const nNet = find(`${rect.id}:dc_neg`);
+
+        if (pNet && nNet && pNet !== nNet) {
+          // Check for smoothing filter capacitor across DC rails
+          const filterCap = this.components.find(c => {
+            if (c.state.burnt) return false;
+            if (c.type === 'capacitor') {
+              const an = find(`${c.id}:anode`);
+              const cat = find(`${c.id}:cathode`);
+              return (an === pNet && cat === nNet) || (an === nNet && cat === pNet);
+            } else if (c.type === 'ceramic_capacitor') {
+              const t1 = find(`${c.id}:t1`);
+              const t2 = find(`${c.id}:t2`);
+              return (t1 === pNet && t2 === nNet) || (t1 === nNet && t2 === pNet);
+            }
+            return false;
+          });
+
+          let vDc = (2 * vPeakDc) / Math.PI; // Raw pulsating full-wave DC average without filter capacitor
+
+          if (filterCap) {
+            const isCeramic = (filterCap.type === 'ceramic_capacitor');
+            const capUf = isCeramic ? (filterCap.state.capacitanceUf || 0.1) : (filterCap.state.capacitance || 1000);
+            const capFarads = Math.max(1e-12, capUf * 1e-6);
+            const maxV = filterCap.state.ratedVoltage || filterCap.state.maxVoltage || (isCeramic ? 50.0 : 16.0);
+
+            if (filterCap.type === 'capacitor') {
+              const an = find(`${filterCap.id}:anode`);
+              const cat = find(`${filterCap.id}:cathode`);
+              if (an === nNet && cat === pNet) {
+                // Reverse polarity breakdown!
+                filterCap.state.powered = true;
+                filterCap.state.reversed = true;
+                filterCap.state.chargingFromSupply = true;
+                filterCap.state.voltageDrop = vPeakDc;
+                const def = window.COMPONENT_DEFINITIONS['capacitor'] || {};
+                this.evaluateComponentSafety(filterCap, def, vPeakDc, 1.0, 10, vPeakDc, [rect]);
+              } else if (an === pNet && cat === nNet) {
+                // Correct polarity charging from rectifier DC output
+                filterCap.state.powered = true;
+                filterCap.state.chargingFromSupply = true;
+                filterCap.state.reversed = false;
+                filterCap.state.voltageDrop = Math.min(maxV, vPeakDc);
+                filterCap.state.storedVoltage = filterCap.state.voltageDrop;
+                filterCap.state.chargePercent = Math.min(100, Math.round((filterCap.state.storedVoltage / maxV) * 100));
+                this.status.activeComponents.add(filterCap.id);
+                const def = window.COMPONENT_DEFINITIONS['capacitor'] || {};
+                this.evaluateComponentSafety(filterCap, def, vPeakDc, 0.5, 10, vPeakDc, [rect]);
+              }
+            } else {
+              // Ceramic capacitor (non-polarized)
+              filterCap.state.powered = true;
+              filterCap.state.chargingFromSupply = true;
+              filterCap.state.voltageDrop = Math.min(maxV, vPeakDc);
+              filterCap.state.storedVoltage = filterCap.state.voltageDrop;
+              filterCap.state.chargePercent = Math.min(100, Math.round((filterCap.state.storedVoltage / maxV) * 100));
+              this.status.activeComponents.add(filterCap.id);
+            }
+
+            if (!filterCap.state.reversed && !filterCap.state.burnt) {
+              // Smoothing ripple calculation as per RC/filter physics:
+              // V_ripple = I_load / (2 * f * C) where f = 50Hz mains (2f = 100Hz ripple frequency)
+              const estLoadI = rect.state.current || 0.028;
+              const fRipple = 100;
+              const vRipple = Math.min(vPeakDc * 0.95, Math.max(0.01, estLoadI / (fRipple * capFarads)));
+              vDc = Math.max(0.5, vPeakDc - (vRipple / 2));
+              filterCap.state.vRipple = vRipple;
+              filterCap.state.ripplePercent = Math.min(100, (vRipple / Math.max(0.1, vPeakDc)) * 100);
+            }
+          }
+
+          rect.state.voltageDrop = vDc;
+          rect.state.peakVoltage = vPeakDc;
+          rect.state.vdcAvg = vDc;
+          rect.state.vRipple = filterCap && !filterCap.state.reversed ? filterCap.state.vRipple : vPeakDc;
+
+          chains.push({
+            primaryPosRoot: pNet,
+            primaryNegRoot: nNet,
+            totalVoltage: vDc,
+            batteries: [rect]
+          });
+
+          // Analyze downstream DC branches driven by the bridge rectifier
+          this.analyzeCircuitBranches(pNet, nNet, vDc, find, [rect]);
+        }
       }
     }
 
@@ -4792,6 +4895,12 @@ class CircuitSolver {
     const acTerminalPins = new Set();
     for (const chain of chains) {
       if (chain.totalVoltage <= 0) continue;
+      // In physical circuits, an open-circuit source (e.g. open switch or broken loop) carries strictly zero current!
+      // Only power sources actively conducting current in a closed circuit loop act as current injection sources!
+      const isSourceConducting = chain.batteries && chain.batteries.some(b =>
+        b.state && (b.state.powered || (b.state.current || 0) > 0.00001)
+      );
+      if (!isSourceConducting) continue;
       const posBat = chain.endBat || (chain.batteries && chain.batteries[0]);
       const negBat = chain.startBat || (chain.batteries && chain.batteries[chain.batteries.length - 1]);
       const isChainAC = chain.batteries && chain.batteries.some(b => b.type === 'ac_source' || (b.type === 'function_generator' && b.state && b.state.waveform !== 'dc'));

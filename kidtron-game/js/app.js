@@ -9811,9 +9811,17 @@ class CircuitApp {
         detail.textContent = `Function Generator signal captured by Digital Storage Oscilloscope (1 MΩ high-Z probe sensing loop).`;
         voltage.textContent = `${(actSig.vrms || v).toFixed(2)} V RMS`;
       } else {
-        headline.textContent = '⚡ Closed Circuit — Power Flowing!';
-        detail.textContent = `${status.activeComponents.size} components energized. (${v.toFixed(1)}V System)`;
-        voltage.textContent = `${v.toFixed(1)} V`;
+        const isSwitchOpen = this.components.some(c => (c.type === 'switch' && !c.state.closed) || (c.type === 'pushbutton' && !c.state.pressed));
+        const dischargingCap = this.components.find(c => (c.type === 'capacitor' || c.type === 'ceramic_capacitor') && (c.state.storedVoltage || 0) > 0.05 && c.state.powered);
+        if (isSwitchOpen && dischargingCap) {
+          headline.textContent = '🔋 Capacitor Discharging (Stored Energy)';
+          detail.textContent = `Main switch is OPEN. Capacitor is supplying stored energy to loads (${(dischargingCap.state.storedVoltage || 0).toFixed(1)}V).`;
+          voltage.textContent = `${(dischargingCap.state.storedVoltage || 0).toFixed(1)} V`;
+        } else {
+          headline.textContent = '⚡ Closed Circuit — Power Flowing!';
+          detail.textContent = `${status.activeComponents.size} components energized. (${v.toFixed(1)}V System)`;
+          voltage.textContent = `${v.toFixed(1)} V`;
+        }
       }
     } else {
       dot.classList.add('open');
@@ -12788,17 +12796,18 @@ class CircuitApp {
           comp.state.esr = esr;
         }
 
-        // 1. RC Time Constant Exponential Discharge: V(t) = V0 * exp(-dt / tau) where tau = (R_load + ESR) * C
+        // 1. RC Time Constant Exponential Discharge: dQ = I * dt -> dV = (I * dt) / C
         const isCharging = !!comp.state.chargingFromSupply;
         if (isCharging) {
-          // Being charged from DC power supply or battery — maintain charge!
+          // Being charged from DC power supply, rectifier, or battery — maintain charge!
         } else if (i > 0.00001 && storedV > 0.01) {
-          const rLoad = Math.max(0.2, (storedV / Math.max(0.00001, i)));
-          const tau = Math.max(0.000001, (rLoad + esr) * capFarads);
-          const decay = Math.exp(-dt / tau);
-          comp.state.dischargeTau = tau;
-          comp.state.storedVoltage = (storedV * decay < 0.02) ? 0 : (storedV * decay);
+          // Active discharge into external circuit loads as per physical RC laws: dV = (i * dt) / C
+          const dV = Math.max(0.0001, (i * dt) / Math.max(1e-12, capFarads));
+          comp.state.storedVoltage = Math.max(0, storedV - dV);
+          if (comp.state.storedVoltage < 0.02) comp.state.storedVoltage = 0;
           comp.state.chargePercent = Math.min(100, Math.round((comp.state.storedVoltage / maxV) * 100));
+          const rEff = Math.max(0.5, storedV / Math.max(0.00001, i));
+          comp.state.dischargeTau = (rEff + esr) * capFarads;
           needsSolve = true;
         } else if (storedV > 0.01) {
           // Sub-barrier or open-circuit bleed: decay smoothly to 0 based on RC time constant
@@ -12878,12 +12887,16 @@ class CircuitApp {
     if (needsSolve && !this.evaluatingCircuit) {
       this.evaluatingCircuit = true;
       try {
-        this.solver.solve();
+        const status = this.solver.solve();
         this.renderWires();
         for (const comp of this.components) {
           if (comp.type === 'led' || comp.type === 'bulb' || comp.type === 'buzzer' || comp.type === 'motor' || comp.type === 'capacitor' || comp.type === 'ceramic_capacitor') {
             this.updateComponentVisual(comp);
           }
+        }
+        this.updateStatusRibbon(status);
+        if (!status.circuitFailed) {
+          this.checkWinCondition(status);
         }
       } catch (err) {
         console.warn('Capacitor discharge solve error:', err);
