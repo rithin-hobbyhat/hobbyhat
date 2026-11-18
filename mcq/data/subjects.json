@@ -1,0 +1,92 @@
+[
+  {
+    "name": "AMVI",
+    "code": "AMVI",
+    "slug": "amvi",
+    "count": 281
+  },
+  {
+    "name": "AUTOMOBILE POLLUTION AND CONTROL",
+    "code": "APC",
+    "slug": "apc",
+    "count": 100
+  },
+  {
+    "name": "CHASSIS",
+    "code": "CHS",
+    "slug": "chs",
+    "count": 700
+  },
+  {
+    "name": "ELECTRICAL SYSTEM",
+    "code": "ELS",
+    "slug": "els",
+    "count": 750
+  },
+  {
+    "name": "ENGINE AND RELATED SYSTEMS",
+    "code": "ERS",
+    "slug": "ers",
+    "count": 580
+  },
+  {
+    "name": "FLUID MECHANICS AND HYDRAULIC MACHINES",
+    "code": "FMHM",
+    "slug": "fmhm",
+    "count": 205
+  },
+  {
+    "name": "HYBRID AND ELECTRIC VEHICLES",
+    "code": "HEV",
+    "slug": "hev",
+    "count": 200
+  },
+  {
+    "name": "JOB RELATED TOPICS",
+    "code": "JRT",
+    "slug": "jrt",
+    "count": 600
+  },
+  {
+    "name": "MACHINE ELEMENTS, MATERIALS AND BOILERS",
+    "code": "MEMB",
+    "slug": "memb",
+    "count": 284
+  },
+  {
+    "name": "MODERN TECHNOLOGIES IN AUTOMOBILES",
+    "code": "MTA",
+    "slug": "mta",
+    "count": 300
+  },
+  {
+    "name": "STRENGTH OF MATERIALS",
+    "code": "SOM",
+    "slug": "som",
+    "count": 249
+  },
+  {
+    "name": "THERMAL ENGINEERING",
+    "code": "TE",
+    "slug": "te",
+    "count": 162
+  },
+  {
+    "name": "TOPIC BASED ON DRIVING LICENCE",
+    "code": "TBDL",
+    "slug": "tbdl",
+    "count": 200
+  },
+  {
+    "name": "TRANSMISSION SYSTEM",
+    "code": "TRN",
+    "slug": "trn",
+    "count": 700
+  },
+  {
+    "name": "TRANSPORTATION MANAGEMENT",
+    "code": "TRM",
+    "slug": "trm",
+    "count": 400
+  }
+]
