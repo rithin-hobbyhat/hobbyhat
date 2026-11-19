@@ -86,15 +86,6 @@
     }
   }
 
-  // 20-Second Emergency Siren & 10-Second Vibration Engine
-  let sirenNodes = {
-    osc: null,
-    lfo: null,
-    gain: null,
-    lfoGain: null,
-    stopTimeout: null
-  };
-
   let vibrationState = {
     intervalId: null,
     timeoutId: null
