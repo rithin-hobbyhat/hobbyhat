@@ -6,6 +6,12 @@
     "count": 281
   },
   {
+    "name": "AUTOMOBILE",
+    "code": "AUTO",
+    "slug": "auto",
+    "count": 100
+  },
+  {
     "name": "AUTOMOBILE POLLUTION AND CONTROL",
     "code": "APC",
     "slug": "apc",
