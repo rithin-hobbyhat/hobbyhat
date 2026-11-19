@@ -1,7 +1,8 @@
 /**
  * MCQ Practice Arena - Client-Side Engine
  * Fast, lightweight vanilla JavaScript with offline support,
- * multi-subject selection, instant explanation feedback, and score tracking.
+ * multi-subject selection, instant explanation feedback, score tracking,
+ * and 5-Minute Pocket Study Alarm Mode (Sound, Vibration & Notifications).
  * Monochrome Black & White Theme (Zero Emojis, High Contrast)
  */
 
@@ -10,19 +11,26 @@
 
   // State Management
   const state = {
-    subjects: [],             // All subjects loaded from subjects.json
+    subjects: [],                // All subjects loaded from subjects.json
     selectedSubjects: new Set(), // Set of selected subject names
-    allQuestionsCache: null,  // Cached questions array
-    activePool: [],           // Final filtered & prepared questions for practice
-    currentIndex: 0,          // Current question index in activePool
-    userAnswers: {},          // Map of qIndex -> { selected: 'A', isCorrect: bool, question: {} }
+    allQuestionsCache: null,     // Cached questions array
+    activePool: [],              // Final filtered & prepared questions for practice
+    currentIndex: 0,             // Current question index in activePool
+    userAnswers: {},             // Map of qIndex -> { selected: 'A', isCorrect: bool, question: {} }
     
     // Settings
-    orderMode: 'random',      // 'random' | 'sequential'
-    questionLimit: 'all',     // Always run all available MCQs
+    orderMode: 'random',         // 'random' | 'sequential'
+    questionLimit: 'all',        // Always run all available MCQs
     showExplanationOnWrong: true,
     autoScrollExp: true,
     soundEnabled: true,
+
+    // Pocket Study Mode (5-min Background Alarm & Notification)
+    pocketMode: false,
+    pocketIntervalMinutes: 5,
+    pocketStandbyActive: false,
+    targetAlertTime: null,
+    wakeLock: null,
 
     // Statistics
     stats: {
@@ -66,17 +74,87 @@
         osc.start(now);
         osc.stop(now + 0.22);
       }
-    } catch (e) {
-      // Audio autoplay policy catch
-    }
+    } catch (e) {}
 
     // Smartphone Haptic Vibration
     if (navigator.vibrate) {
       if (type === 'correct') {
-        navigator.vibrate(30);
+        navigator.vibrate(35);
       } else if (type === 'wrong') {
         navigator.vibrate([40, 50, 40]);
       }
+    }
+  }
+
+  // Pocket Alert Chime (Multi-tone bell for background alarm)
+  function playPocketAlarmChime() {
+    if (!audioCtx) return;
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      // 3-tone chime (E5 -> G#5 -> B5)
+      const freqs = [659.25, 830.61, 987.77];
+      freqs.forEach((freq, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+        gain.gain.setValueAtTime(0.25, now + idx * 0.14);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.65);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + idx * 0.14);
+        osc.stop(now + idx * 0.14 + 0.65);
+      });
+    } catch (e) {}
+  }
+
+  // Pocket Alert Vibration Pattern for smartphone
+  function triggerPocketVibration() {
+    if (navigator.vibrate) {
+      // 3 distinct buzz pulses for pocket notification: buzz-pause-buzz-pause-long buzz
+      navigator.vibrate([250, 100, 250, 100, 450]);
+    }
+  }
+
+  // Request Notification Permissions
+  async function requestNotificationPermission() {
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        return perm === 'granted';
+      }
+      return Notification.permission === 'granted';
+    }
+    return false;
+  }
+
+  // Send Pocket System Notification
+  function sendPocketNotification(q) {
+    const title = `MCQ Alert [${q.subject_code || q.subject}]`;
+    const snippet = q.question.length > 90 ? q.question.slice(0, 90) + '...' : q.question;
+    const body = `${snippet}\nTap to answer!`;
+    const options = {
+      body: body,
+      icon: './icon.png',
+      badge: './icon.png',
+      tag: 'pocket-mcq-alarm',
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [250, 100, 250, 100, 450],
+      data: { url: './index.html' }
+    };
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, options);
+      }).catch(() => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, options);
+        }
+      });
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, options);
     }
   }
 
@@ -104,6 +182,12 @@
     btnStartPractice: document.getElementById('btn-start-practice'),
     startBtnText: document.getElementById('start-btn-text'),
 
+    // Pocket Mode Settings
+    chkPocketMode: document.getElementById('chk-pocket-mode'),
+    pocketOptionsSub: document.getElementById('pocket-options-sub'),
+    pocketIntervalSelector: document.getElementById('pocket-interval-selector'),
+    btnTestNotification: document.getElementById('btn-test-notification'),
+
     // Practice Screen
     qCounter: document.getElementById('q-counter'),
     scorePoints: document.getElementById('score-points'),
@@ -114,7 +198,16 @@
     statRemaining: document.getElementById('stat-remaining'),
     btnGridToggle: document.getElementById('btn-grid-toggle'),
 
+    // Pocket Standby View
+    pocketStandbyView: document.getElementById('pocket-standby-view'),
+    standbyIntervalBadge: document.getElementById('standby-interval-badge'),
+    standbyCountdownText: document.getElementById('standby-countdown-text'),
+    btnStandbyAnswerNow: document.getElementById('btn-standby-answer-now'),
+    btnPocketResume: document.getElementById('btn-pocket-resume'),
+
     // Question Card
+    practiceCardWrapper: document.getElementById('practice-card-wrapper'),
+    currentQuestionCard: document.getElementById('current-question-card'),
     qSubjectTag: document.getElementById('q-subject-tag'),
     qIdTag: document.getElementById('q-id-tag'),
     qDiffTag: document.getElementById('q-diff-tag'),
@@ -179,12 +272,16 @@
     if (screenId === 'setup') {
       DOM.screenSetup.classList.add('active');
       DOM.navSubtitle.textContent = '5,700+ Questions • Technical Question Bank';
+      stopPocketTimer();
     } else if (screenId === 'practice') {
       DOM.screenPractice.classList.add('active');
-      DOM.navSubtitle.textContent = `Practicing: ${state.selectedSubjects.size} Subject(s)`;
+      DOM.navSubtitle.textContent = state.pocketMode 
+        ? `Pocket Mode (${state.pocketIntervalMinutes}m Alerts)`
+        : `Practicing: ${state.selectedSubjects.size} Subject(s)`;
     } else if (screenId === 'results') {
       DOM.screenResults.classList.add('active');
       DOM.navSubtitle.textContent = 'Performance Report';
+      stopPocketTimer();
     }
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
@@ -195,6 +292,7 @@
   async function init() {
     loadPreferences();
     setupEventListeners();
+    initWebWorkerTimer();
     await loadSubjectsData();
     registerServiceWorker();
   }
@@ -303,6 +401,110 @@
   }
 
   // =========================================================================
+  // BACKGROUND TIMER WORKER (Prevents Throttling When Minimized / In Pocket)
+  // =========================================================================
+  let timerWorker = null;
+
+  function initWebWorkerTimer() {
+    try {
+      const workerCode = `
+        let timer = null;
+        self.onmessage = function(e) {
+          if (e.data === 'start') {
+            clearInterval(timer);
+            timer = setInterval(() => { self.postMessage('tick'); }, 1000);
+          } else if (e.data === 'stop') {
+            clearInterval(timer);
+          }
+        };
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      timerWorker = new Worker(URL.createObjectURL(blob));
+      timerWorker.onmessage = handleWorkerTick;
+    } catch (e) {
+      // Fallback to standard setInterval if Web Worker is restricted
+      setInterval(handleWorkerTick, 1000);
+    }
+
+    // Wake check: when phone wakes up or user returns to tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state.pocketStandbyActive && state.targetAlertTime) {
+        if (Date.now() >= state.targetAlertTime) {
+          triggerPocketQuestionAlert();
+        }
+      }
+    });
+  }
+
+  function handleWorkerTick() {
+    if (!state.pocketStandbyActive || !state.targetAlertTime) return;
+
+    const remainingSec = Math.max(0, Math.round((state.targetAlertTime - Date.now()) / 1000));
+    const mins = Math.floor(remainingSec / 60);
+    const secs = remainingSec % 60;
+    const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    if (DOM.standbyCountdownText) {
+      DOM.standbyCountdownText.textContent = timeStr;
+    }
+
+    if (remainingSec <= 0) {
+      triggerPocketQuestionAlert();
+    }
+  }
+
+  function startPocketTimer() {
+    state.pocketStandbyActive = true;
+    state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
+
+    // Show Standby view, hide question card
+    DOM.pocketStandbyView.style.display = 'block';
+    DOM.practiceCardWrapper.style.display = 'none';
+    DOM.standbyIntervalBadge.textContent = `${state.pocketIntervalMinutes}-Min Alert Active`;
+
+    if (timerWorker) {
+      timerWorker.postMessage('start');
+    }
+  }
+
+  function stopPocketTimer() {
+    state.pocketStandbyActive = false;
+    state.targetAlertTime = null;
+    if (timerWorker) {
+      timerWorker.postMessage('stop');
+    }
+  }
+
+  // Fires when 5-min timer completes
+  function triggerPocketQuestionAlert() {
+    stopPocketTimer();
+
+    // Sound chime + smartphone vibration
+    playPocketAlarmChime();
+    triggerPocketVibration();
+
+    // Advance to next question
+    if (state.currentIndex < state.activePool.length - 1) {
+      state.currentIndex++;
+    } else {
+      state.currentIndex = 0; // Loop or finish
+    }
+
+    const nextQ = state.activePool[state.currentIndex];
+
+    // Push system notification to lock screen / status bar
+    if (nextQ) {
+      sendPocketNotification(nextQ);
+    }
+
+    // Render new question and bring card back
+    DOM.pocketStandbyView.style.display = 'none';
+    DOM.practiceCardWrapper.style.display = 'block';
+    renderCurrentQuestion();
+    showToast('New MCQ Ready!');
+  }
+
+  // =========================================================================
   // SETUP EVENT LISTENERS
   // =========================================================================
   function setupEventListeners() {
@@ -353,6 +555,57 @@
         s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
       );
       renderSubjectsGrid(filtered);
+    });
+
+    // Pocket Study Mode Toggle
+    DOM.chkPocketMode.addEventListener('change', async (e) => {
+      state.pocketMode = e.target.checked;
+      DOM.pocketOptionsSub.style.display = state.pocketMode ? 'block' : 'none';
+      if (state.pocketMode) {
+        const granted = await requestNotificationPermission();
+        if (!granted && 'Notification' in window && Notification.permission === 'denied') {
+          showToast('Please allow browser notifications in site settings for pocket alerts');
+        } else {
+          showToast('5-Minute Pocket Mode Enabled');
+        }
+      }
+    });
+
+    // Pocket Interval Selector
+    DOM.pocketIntervalSelector.addEventListener('click', (e) => {
+      const btn = e.target.closest('.chip-btn');
+      if (!btn) return;
+      DOM.pocketIntervalSelector.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.pocketIntervalMinutes = parseInt(btn.dataset.interval, 10) || 5;
+    });
+
+    // Test Sound, Vibration & Notification button
+    DOM.btnTestNotification.addEventListener('click', async () => {
+      await requestNotificationPermission();
+      playPocketAlarmChime();
+      triggerPocketVibration();
+      sendPocketNotification({
+        subject_code: 'TEST',
+        subject: 'Demo Alert',
+        question: 'This is a test notification. Sound and vibration working!'
+      });
+      showToast('Alert chime and vibration triggered!');
+    });
+
+    // Pocket Standby View: Answer Question Now
+    DOM.btnStandbyAnswerNow.addEventListener('click', () => {
+      stopPocketTimer();
+      DOM.pocketStandbyView.style.display = 'none';
+      DOM.practiceCardWrapper.style.display = 'block';
+      renderCurrentQuestion();
+    });
+
+    // Resume Standby Button inside explanation box
+    DOM.btnPocketResume.addEventListener('click', () => {
+      DOM.explanationBox.style.display = 'none';
+      startPocketTimer();
+      showToast(`Standby active for ${state.pocketIntervalMinutes} minutes`);
     });
 
     // Order Mode Radio buttons
@@ -471,8 +724,15 @@
       };
 
       showScreen('practice');
+      DOM.pocketStandbyView.style.display = 'none';
+      DOM.practiceCardWrapper.style.display = 'block';
       renderCurrentQuestion();
       updateScoreboard();
+
+      if (state.pocketMode) {
+        await requestNotificationPermission();
+        showToast(`Pocket Mode Active: 5-minute interval started`);
+      }
     } catch (err) {
       console.error('Failed to prepare practice pool:', err);
       alert('Error loading questions: ' + err.message);
@@ -490,7 +750,6 @@
       return state.allQuestionsCache.filter(q => state.selectedSubjects.has(q.subject));
     }
 
-    // Optimization: If selecting only 1 or 2 subjects, fetch individual subject JSON files
     if (countSelected <= 2 && countSelected < totalSubjects) {
       const selectedSlugs = state.subjects
         .filter(s => state.selectedSubjects.has(s.name))
@@ -504,7 +763,6 @@
       return loadedArrays.flat();
     }
 
-    // Otherwise fetch the consolidated questions.json
     const res = await fetch('./data/questions.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     state.allQuestionsCache = await res.json();
@@ -528,6 +786,7 @@
 
     // Reset Explanation box
     DOM.explanationBox.style.display = 'none';
+    DOM.btnPocketResume.style.display = 'none';
 
     // Tags & statement
     DOM.qSubjectTag.textContent = `${q.subject_code ? '[' + q.subject_code + '] ' : ''}${q.subject}`;
@@ -577,7 +836,6 @@
         }
       }
 
-      // Handle single click (attending) and repeated click/tap (showing right answer description)
       btn.addEventListener('click', () => handleOptionClick(letter, btn));
       btn.addEventListener('dblclick', () => handleOptionDblClick(letter));
 
@@ -587,6 +845,9 @@
     // If already answered and was wrong, show description automatically
     if (isAnswered && !answerRecord.isCorrect) {
       showExplanation(q, false);
+      if (state.pocketMode) {
+        DOM.btnPocketResume.style.display = 'block';
+      }
     }
 
     // Update Next button text
@@ -611,7 +872,6 @@
 
     // If already answered:
     if (answerRecord) {
-      // If clicking or tapping on the right answer option after being attended, toggle explanation
       if (chosenLetter.toUpperCase() === correctLetter) {
         toggleExplanation(q, true);
       }
@@ -636,7 +896,7 @@
   // Handling User Choice
   function pickOption(chosenLetter) {
     if (state.userAnswers[state.currentIndex]) {
-      return; // Already answered
+      return;
     }
 
     const q = state.activePool[state.currentIndex];
@@ -688,12 +948,29 @@
       }
     });
 
-    // Show Description / Explanation if wrong answer selected automatically
-    if (!isCorrect && state.showExplanationOnWrong) {
-      showExplanation(q, false);
-    }
-
     updateScoreboard();
+
+    // INNOVATION: POCKET MODE LOGIC
+    if (state.pocketMode) {
+      if (isCorrect) {
+        // "After we clicking right answer, it will go."
+        // Show brief 1.2s check, then put into 5-minute standby!
+        showToast(`Correct! Next MCQ alert in ${state.pocketIntervalMinutes} minutes.`);
+        setTimeout(() => {
+          startPocketTimer();
+        }, 1200);
+      } else {
+        // "if we select wrong answer, the discription about right answer should show."
+        showExplanation(q, false);
+        DOM.btnPocketResume.style.display = 'block';
+        showToast('Incorrect. Review description, then resume 5-min timer.');
+      }
+    } else {
+      // Normal practice mode
+      if (!isCorrect && state.showExplanationOnWrong) {
+        showExplanation(q, false);
+      }
+    }
   }
 
   function toggleExplanation(q, isCorrect) {
@@ -751,7 +1028,6 @@
   }
 
   function handleNextClick() {
-    // Next button only works after attending the answer
     if (!state.userAnswers[state.currentIndex]) {
       showToast('Please attend an answer first to proceed');
       return;
@@ -809,6 +1085,7 @@
   // =========================================================================
   function finishPractice() {
     state.stats.endTime = Date.now();
+    stopPocketTimer();
     showScreen('results');
 
     const attended = state.stats.attended;
@@ -849,11 +1126,9 @@
       DOM.btnRestartMistakes.style.display = 'none';
     }
 
-    // Set filter counts for Mistakes and Correct only
     DOM.revFilterWrong.textContent = wrong;
     DOM.revFilterCorrect.textContent = correct;
 
-    // Show Mistakes tab by default if any mistakes exist, otherwise show Correct
     const defaultTab = wrong > 0 ? 'wrong' : 'correct';
     DOM.reviewFilters.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
     const defaultPill = DOM.reviewFilters.querySelector(`[data-filter="${defaultTab}"]`);
@@ -871,13 +1146,11 @@
       const q = state.activePool[i];
       const ans = state.userAnswers[i];
 
-      // Only show attended answers (ignore unvisited/skipped questions)
       if (!ans) continue;
 
       const isCorrect = ans.isCorrect;
       const isWrong = !ans.isCorrect;
 
-      // Filter condition: Mistakes vs Correct
       if (filterType === 'wrong' && !isWrong) continue;
       if (filterType === 'correct' && !isCorrect) continue;
 
@@ -964,6 +1237,8 @@
     };
 
     showScreen('practice');
+    DOM.pocketStandbyView.style.display = 'none';
+    DOM.practiceCardWrapper.style.display = 'block';
     renderCurrentQuestion();
     updateScoreboard();
     showToast(`Retesting ${mistakesPool.length} mistakes`);
@@ -982,6 +1257,8 @@
     };
 
     showScreen('practice');
+    DOM.pocketStandbyView.style.display = 'none';
+    DOM.practiceCardWrapper.style.display = 'block';
     renderCurrentQuestion();
     updateScoreboard();
   }

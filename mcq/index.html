@@ -157,6 +157,35 @@
               </label>
             </div>
           </div>
+
+          <!-- Pocket Study Mode (5-min Background Alarm & Vibration) -->
+          <div class="settings-group">
+            <label class="group-title">Pocket Study Mode (Background Alerts)</label>
+            <div class="toggle-option">
+              <label class="switch-label">
+                <input type="checkbox" id="chk-pocket-mode">
+                <span class="switch-slider"></span>
+                <span class="label-text">
+                  <strong>Enable 5-Minute Pocket Alerts</strong>
+                  <small>Wakes phone with vibration and sound notification every 5 minutes while minimized</small>
+                </span>
+              </label>
+            </div>
+            
+            <div class="pocket-options-sub" id="pocket-options-sub" style="display: none; margin-top: 10px;">
+              <div class="pocket-interval-row">
+                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: block;">Notification Interval</label>
+                <div class="chip-selector" id="pocket-interval-selector">
+                  <button type="button" class="chip-btn" data-interval="3">3 Min</button>
+                  <button type="button" class="chip-btn active" data-interval="5">5 Min (Default)</button>
+                  <button type="button" class="chip-btn" data-interval="10">10 Min</button>
+                </div>
+              </div>
+              <div style="margin-top: 10px;">
+                <button type="button" class="btn-text" id="btn-test-notification">Test Sound, Vibration & Notification</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Sticky Start Button for Mobile -->
@@ -204,8 +233,26 @@
           </div>
         </div>
 
+        <!-- Pocket Standby Card (Shown during 5-minute wait interval) -->
+        <div class="card pocket-standby-card" id="pocket-standby-view" style="display: none;">
+          <div class="standby-header">
+            <span class="meta-tag subject-tag">Pocket Study Mode</span>
+            <span class="standby-interval-badge" id="standby-interval-badge">5-Min Alert Active</span>
+          </div>
+          <div class="standby-body">
+            <div class="standby-countdown" id="standby-countdown-text">05:00</div>
+            <div class="standby-countdown-lbl">Next MCQ arrives in</div>
+            <p class="standby-info">
+              You can minimize Chrome or put your phone in your pocket. A vibration and sound notification will alert you when your next MCQ arrives.
+            </p>
+            <div class="standby-actions">
+              <button type="button" class="btn-primary" id="btn-standby-answer-now">Answer Question Now</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Question Card -->
-        <div class="practice-card-wrapper">
+        <div class="practice-card-wrapper" id="practice-card-wrapper">
           <div class="card question-card" id="current-question-card">
             
             <!-- Metadata tags -->
@@ -236,6 +283,9 @@
               <div class="exp-content" id="exp-text">
                 <!-- Explanation text from database -->
               </div>
+              <button type="button" class="btn-primary" id="btn-pocket-resume" style="display: none; margin-top: 14px; width: 100%;">
+                Resume 5-Minute Pocket Interval
+              </button>
             </div>
 
           </div>

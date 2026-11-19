@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcq-practice-v4';
+const CACHE_NAME = 'mcq-practice-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -32,7 +32,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first, falling back to cache
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -47,5 +46,23 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         return caches.match(event.request);
       })
+  );
+});
+
+// Handle clicking on notification from lock screen / notification tray
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if ('focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('./index.html');
+      }
+    })
   );
 });
