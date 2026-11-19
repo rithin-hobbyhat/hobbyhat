@@ -1023,6 +1023,14 @@ html, body {
   background-color: #e4e4e7;
 }
 
+.btn-nav-primary:disabled {
+  background-color: #18181b;
+  border-color: #27272a;
+  color: #52525b;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .btn-finish-pill {
   color: #e4e4e7;
   border-color: var(--border-color);

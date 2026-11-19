@@ -19,7 +19,7 @@
     
     // Settings
     orderMode: 'random',      // 'random' | 'sequential'
-    questionLimit: 50,        // number or 'all'
+    questionLimit: 'all',     // Always run all available MCQs
     showExplanationOnWrong: true,
     autoScrollExp: true,
     soundEnabled: true,
@@ -99,8 +99,6 @@
     btnSelectAll: document.getElementById('btn-select-all'),
     btnClearAll: document.getElementById('btn-clear-all'),
     subjectSearchInput: document.getElementById('subject-search-input'),
-    countSelector: document.getElementById('count-selector'),
-    customCountInput: document.getElementById('custom-count-input'),
     chkWrongExp: document.getElementById('chk-wrong-explanation'),
     chkAutoScroll: document.getElementById('chk-auto-scroll'),
     btnStartPractice: document.getElementById('btn-start-practice'),
@@ -152,7 +150,6 @@
     btnNewSetup: document.getElementById('btn-new-setup'),
     reviewFilters: document.getElementById('review-filters'),
     reviewListContainer: document.getElementById('review-list-container'),
-    revFilterAll: document.getElementById('rev-filter-all'),
     revFilterWrong: document.getElementById('rev-filter-wrong'),
     revFilterCorrect: document.getElementById('rev-filter-correct'),
 
@@ -203,7 +200,6 @@
   }
 
   function loadPreferences() {
-    // Sound
     const savedSound = localStorage.getItem('mcq_sound');
     if (savedSound === 'off') {
       state.soundEnabled = false;
@@ -272,7 +268,6 @@
       state.selectedSubjects.add(name);
     }
 
-    // Toggle selected class on UI elements
     const elements = DOM.subjectsContainer.querySelectorAll('.subject-item');
     elements.forEach(el => {
       if (el.dataset.name === name) {
@@ -300,7 +295,7 @@
 
     if (count > 0) {
       DOM.btnStartPractice.disabled = false;
-      DOM.startBtnText.textContent = `Start Practice with ${count} Subject${count > 1 ? 's' : ''} (${totalQuestions.toLocaleString()} Available)`;
+      DOM.startBtnText.textContent = `Start Practice with All ${totalQuestions.toLocaleString()} Questions (${count} Subject${count > 1 ? 's' : ''})`;
     } else {
       DOM.btnStartPractice.disabled = true;
       DOM.startBtnText.textContent = 'Select at least 1 subject to start';
@@ -360,25 +355,6 @@
       renderSubjectsGrid(filtered);
     });
 
-    // Question Count Selector
-    DOM.countSelector.addEventListener('click', (e) => {
-      const btn = e.target.closest('.chip-btn');
-      if (!btn) return;
-      DOM.countSelector.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const val = btn.dataset.count;
-      state.questionLimit = val === 'all' ? 'all' : parseInt(val, 10);
-      DOM.customCountInput.value = '';
-    });
-
-    DOM.customCountInput.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
-      if (val && val > 0) {
-        DOM.countSelector.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-        state.questionLimit = val;
-      }
-    });
-
     // Order Mode Radio buttons
     document.querySelectorAll('input[name="order-mode"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
@@ -421,7 +397,7 @@
     DOM.btnRestartSame.addEventListener('click', () => restartPractice(false));
     DOM.btnNewSetup.addEventListener('click', () => showScreen('setup'));
 
-    // Results Review Filters
+    // Results Review Filters (Mistakes vs Correct only)
     DOM.reviewFilters.addEventListener('click', (e) => {
       const pill = e.target.closest('.filter-pill');
       if (!pill) return;
@@ -442,12 +418,18 @@
     }
 
     const key = e.key.toUpperCase();
-    if (['1', 'A'].includes(key)) pickOption('A');
-    else if (['2', 'B'].includes(key)) pickOption('B');
-    else if (['3', 'C'].includes(key)) pickOption('C');
-    else if (['4', 'D'].includes(key)) pickOption('D');
-    else if (e.key === 'ArrowRight' || key === 'N') handleNextClick();
-    else if (e.key === 'ArrowLeft' || key === 'P') navigateQuestion(state.currentIndex - 1);
+    if (['1', 'A'].includes(key)) handleOptionClick('A');
+    else if (['2', 'B'].includes(key)) handleOptionClick('B');
+    else if (['3', 'C'].includes(key)) handleOptionClick('C');
+    else if (['4', 'D'].includes(key)) handleOptionClick('D');
+    else if (e.key === 'ArrowRight' || key === 'N' || e.key === 'Enter') {
+      if (state.userAnswers[state.currentIndex]) {
+        handleNextClick();
+      }
+    }
+    else if (e.key === 'ArrowLeft' || key === 'P') {
+      navigateQuestion(state.currentIndex - 1);
+    }
   }
 
   // =========================================================================
@@ -463,7 +445,6 @@
     DOM.startBtnText.textContent = 'Loading questions...';
 
     try {
-      // Load questions from selected subjects
       const questions = await fetchSelectedQuestions();
       if (!questions || questions.length === 0) {
         alert('No questions found for the selected subject(s).');
@@ -472,15 +453,10 @@
         return;
       }
 
-      // Order Mode: Random vs As Per Order
+      // Always run ALL available questions from selected subjects
       let pool = [...questions];
       if (state.orderMode === 'random') {
         shuffleArray(pool);
-      }
-
-      // Limit count
-      if (state.questionLimit !== 'all' && typeof state.questionLimit === 'number') {
-        pool = pool.slice(0, Math.min(state.questionLimit, pool.length));
       }
 
       state.activePool = pool;
@@ -510,7 +486,6 @@
     const countSelected = state.selectedSubjects.size;
     const totalSubjects = state.subjects.length;
 
-    // If all questions are already cached in memory, filter directly
     if (state.allQuestionsCache) {
       return state.allQuestionsCache.filter(q => state.selectedSubjects.has(q.subject));
     }
@@ -529,7 +504,7 @@
       return loadedArrays.flat();
     }
 
-    // Otherwise fetch the consolidated questions.json (browser caches)
+    // Otherwise fetch the consolidated questions.json
     const res = await fetch('./data/questions.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     state.allQuestionsCache = await res.json();
@@ -565,6 +540,10 @@
     const letters = ['A', 'B', 'C', 'D'];
     const answerRecord = state.userAnswers[state.currentIndex];
     const isAnswered = !!answerRecord;
+    const correctLetter = (q.answer || 'A').toUpperCase();
+
+    // Next button disabled by default until answered
+    DOM.btnNext.disabled = !isAnswered;
 
     letters.forEach(letter => {
       const optText = q.options[letter] || '';
@@ -582,30 +561,30 @@
       `;
 
       if (isAnswered) {
-        btn.disabled = true;
-        const correctLetter = (q.answer || 'A').toUpperCase();
-
         if (answerRecord.selected === letter) {
           if (answerRecord.isCorrect) {
             btn.classList.add('selected-correct');
             btn.querySelector('.opt-status-icon').textContent = 'Correct';
+            btn.title = 'Double-click to view answer description';
           } else {
             btn.classList.add('selected-wrong');
             btn.querySelector('.opt-status-icon').textContent = 'Incorrect';
           }
         } else if (!answerRecord.isCorrect && letter === correctLetter) {
-          // Highlight correct answer when wrong was chosen
           btn.classList.add('reveal-correct');
           btn.querySelector('.opt-status-icon').textContent = 'Correct';
+          btn.title = 'Double-click to view answer description';
         }
-      } else {
-        btn.addEventListener('click', () => pickOption(letter));
       }
+
+      // Handle single click (attending) and repeated click/tap (showing right answer description)
+      btn.addEventListener('click', () => handleOptionClick(letter, btn));
+      btn.addEventListener('dblclick', () => handleOptionDblClick(letter));
 
       DOM.optionsContainer.appendChild(btn);
     });
 
-    // If already answered and was wrong, show description
+    // If already answered and was wrong, show description automatically
     if (isAnswered && !answerRecord.isCorrect) {
       showExplanation(q, false);
     }
@@ -620,6 +599,38 @@
     DOM.btnPrev.disabled = state.currentIndex === 0;
 
     updateScoreboard();
+  }
+
+  // Unified option click handler
+  function handleOptionClick(chosenLetter) {
+    const q = state.activePool[state.currentIndex];
+    if (!q) return;
+
+    const correctLetter = (q.answer || 'A').trim().toUpperCase();
+    const answerRecord = state.userAnswers[state.currentIndex];
+
+    // If already answered:
+    if (answerRecord) {
+      // If clicking or tapping on the right answer option after being attended, toggle explanation
+      if (chosenLetter.toUpperCase() === correctLetter) {
+        toggleExplanation(q, true);
+      }
+      return;
+    }
+
+    // First time attending:
+    pickOption(chosenLetter);
+  }
+
+  // Double click handler specifically for desktop mouse users
+  function handleOptionDblClick(chosenLetter) {
+    const q = state.activePool[state.currentIndex];
+    if (!q) return;
+
+    const correctLetter = (q.answer || 'A').trim().toUpperCase();
+    if (chosenLetter.toUpperCase() === correctLetter) {
+      showExplanation(q, true);
+    }
   }
 
   // Handling User Choice
@@ -652,10 +663,12 @@
     }
     state.stats.attended++;
 
-    // Disable all option buttons and apply visual feedback
+    // Enable Next button immediately after attending
+    DOM.btnNext.disabled = false;
+
+    // Apply visual feedback to option buttons
     const buttons = DOM.optionsContainer.querySelectorAll('.option-btn');
     buttons.forEach(btn => {
-      btn.disabled = true;
       const letter = btn.dataset.letter;
       const statusIcon = btn.querySelector('.opt-status-icon');
 
@@ -663,6 +676,7 @@
         if (isCorrect) {
           btn.classList.add('selected-correct');
           statusIcon.textContent = 'Correct';
+          btn.title = 'Double-click to view answer description';
         } else {
           btn.classList.add('selected-wrong');
           statusIcon.textContent = 'Incorrect';
@@ -670,10 +684,11 @@
       } else if (!isCorrect && letter === correctLetter) {
         btn.classList.add('reveal-correct');
         statusIcon.textContent = 'Correct';
+        btn.title = 'Double-click to view answer description';
       }
     });
 
-    // Show Description / Explanation if wrong answer selected
+    // Show Description / Explanation if wrong answer selected automatically
     if (!isCorrect && state.showExplanationOnWrong) {
       showExplanation(q, false);
     }
@@ -681,12 +696,20 @@
     updateScoreboard();
   }
 
+  function toggleExplanation(q, isCorrect) {
+    if (DOM.explanationBox.style.display === 'block') {
+      DOM.explanationBox.style.display = 'none';
+    } else {
+      showExplanation(q, isCorrect);
+    }
+  }
+
   function showExplanation(q, isCorrect) {
     const correctLetter = (q.answer || 'A').trim().toUpperCase();
     const correctText = q.options[correctLetter] || '';
 
     DOM.expTitle.textContent = isCorrect 
-      ? 'Correct. Explanation:' 
+      ? 'Correct Answer Description & Explanation:' 
       : 'Answer Description & Explanation:';
 
     DOM.expCorrectBanner.innerHTML = `
@@ -713,27 +736,27 @@
     const wrong = state.stats.wrong;
     const remaining = total - attended;
 
-    // Top Question Counter
     DOM.qCounter.textContent = `${current} / ${total}`;
-
-    // Points: (Right / Attended)
     DOM.scorePoints.textContent = `${correct} / ${attended}`;
     
-    // Percentage
     const pct = attended > 0 ? ((correct / attended) * 100).toFixed(1) : '0';
     DOM.scorePct.textContent = `(${pct}%)`;
 
-    // Progress Bar
     const progressPct = total > 0 ? (current / total) * 100 : 0;
     DOM.progressFill.style.width = `${progressPct}%`;
 
-    // Pills
     DOM.statCorrect.textContent = correct;
     DOM.statWrong.textContent = wrong;
     DOM.statRemaining.textContent = remaining;
   }
 
   function handleNextClick() {
+    // Next button only works after attending the answer
+    if (!state.userAnswers[state.currentIndex]) {
+      showToast('Please attend an answer first to proceed');
+      return;
+    }
+
     if (state.currentIndex >= state.activePool.length - 1) {
       finishPractice();
     } else {
@@ -804,7 +827,6 @@
     DOM.resAttendedCount.textContent = attended;
     DOM.resUnattendedCount.textContent = skipped;
 
-    // Performance headline
     const numPct = parseFloat(pct);
     if (numPct >= 85) {
       DOM.resultBadge.textContent = 'Outstanding Performance';
@@ -820,7 +842,6 @@
       DOM.resSub.textContent = 'Review the detailed descriptions below and retest incorrect questions.';
     }
 
-    // Retest mistakes button
     if (wrong > 0) {
       DOM.btnRestartMistakes.style.display = 'inline-flex';
       DOM.retestCount.textContent = wrong;
@@ -828,15 +849,17 @@
       DOM.btnRestartMistakes.style.display = 'none';
     }
 
-    // Set filter counts
-    DOM.revFilterAll.textContent = total;
+    // Set filter counts for Mistakes and Correct only
     DOM.revFilterWrong.textContent = wrong;
     DOM.revFilterCorrect.textContent = correct;
 
-    // Reset filter to All
+    // Show Mistakes tab by default if any mistakes exist, otherwise show Correct
+    const defaultTab = wrong > 0 ? 'wrong' : 'correct';
     DOM.reviewFilters.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-    DOM.reviewFilters.querySelector('[data-filter="all"]').classList.add('active');
-    renderReviewList('all');
+    const defaultPill = DOM.reviewFilters.querySelector(`[data-filter="${defaultTab}"]`);
+    if (defaultPill) defaultPill.classList.add('active');
+
+    renderReviewList(defaultTab);
   }
 
   function renderReviewList(filterType) {
@@ -848,30 +871,28 @@
       const q = state.activePool[i];
       const ans = state.userAnswers[i];
 
-      const isCorrect = ans && ans.isCorrect;
-      const isWrong = ans && !ans.isCorrect;
-      const isSkipped = !ans;
+      // Only show attended answers (ignore unvisited/skipped questions)
+      if (!ans) continue;
 
+      const isCorrect = ans.isCorrect;
+      const isWrong = !ans.isCorrect;
+
+      // Filter condition: Mistakes vs Correct
       if (filterType === 'wrong' && !isWrong) continue;
       if (filterType === 'correct' && !isCorrect) continue;
 
       itemsShown++;
       const itemEl = document.createElement('div');
-      itemEl.className = `review-item ${isCorrect ? 'is-correct' : isWrong ? 'is-wrong' : ''}`;
+      itemEl.className = `review-item ${isCorrect ? 'is-correct' : 'is-wrong'}`;
 
       const correctLetter = (q.answer || 'A').toUpperCase();
       const correctText = q.options[correctLetter] || '';
-      const userSelected = ans ? ans.selected : null;
-      const userSelectedText = userSelected ? q.options[userSelected] : 'Skipped / Unattended';
+      const userSelected = ans.selected;
+      const userSelectedText = q.options[userSelected] || '';
 
-      let statusHtml = '';
-      if (isCorrect) {
-        statusHtml = '<span class="rev-status correct">Correct</span>';
-      } else if (isWrong) {
-        statusHtml = '<span class="rev-status wrong">Incorrect</span>';
-      } else {
-        statusHtml = '<span class="rev-status" style="background:#27272a; color:#a1a1aa;">Skipped</span>';
-      }
+      const statusHtml = isCorrect 
+        ? '<span class="rev-status correct">Correct</span>'
+        : '<span class="rev-status wrong">Incorrect</span>';
 
       itemEl.innerHTML = `
         <div class="rev-header">
@@ -884,20 +905,25 @@
         <div class="rev-q-text">${escapeHtml(q.question)}</div>
 
         <div class="rev-answers-summary">
-          <div class="rev-ans-row ${isCorrect ? 'user-correct' : 'user-wrong'}">
-            <span>Your Choice:</span>
-            <strong>${userSelected ? `Option ${userSelected}: ${escapeHtml(userSelectedText)}` : 'Not Answered'}</strong>
-          </div>
-          ${!isCorrect ? `
+          ${isWrong ? `
+            <div class="rev-ans-row user-wrong">
+              <span>Your Answer:</span>
+              <strong>Option ${userSelected}: ${escapeHtml(userSelectedText)}</strong>
+            </div>
             <div class="rev-ans-row correct-ans">
               <span>Correct Answer:</span>
               <strong>Option ${correctLetter}: ${escapeHtml(correctText)}</strong>
             </div>
-          ` : ''}
+          ` : `
+            <div class="rev-ans-row user-correct">
+              <span>Answered:</span>
+              <strong>Option ${userSelected}: ${escapeHtml(userSelectedText)} (Correct)</strong>
+            </div>
+          `}
         </div>
 
         <div class="rev-exp-box">
-          <strong style="color: #ffffff;">Explanation:</strong> ${escapeHtml(q.explanation || 'No explanation available.')}
+          <strong style="color: #ffffff;">Explanation / Description:</strong> ${escapeHtml(q.explanation || 'No explanation available.')}
         </div>
       `;
 
@@ -905,7 +931,10 @@
     }
 
     if (itemsShown === 0) {
-      DOM.reviewListContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No questions match this filter.</div>';
+      const emptyMsg = filterType === 'wrong' 
+        ? 'No mistakes recorded in this session! Great job!'
+        : 'No correct answers to display.';
+      DOM.reviewListContainer.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary); font-weight: 600;">${emptyMsg}</div>`;
     }
   }
 
@@ -978,7 +1007,6 @@
     }
   }
 
-  // Start app on DOMContentLoaded
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
