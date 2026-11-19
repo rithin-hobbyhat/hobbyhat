@@ -109,7 +109,33 @@
 
   let wrongAnswerResumeTimer = null;
 
-  // Synthesizes a realistic emergency wailing siren using Web Audio API
+  // Industrial Dual-Rotor Siren State
+  let sirenNodes = {
+    oscLower: null,
+    oscUpper: null,
+    lfo: null,
+    lfoGainLower: null,
+    lfoGainUpper: null,
+    hornFilter: null,
+    shaper: null,
+    gain: null,
+    stopTimeout: null
+  };
+
+  // Soft-clipping curve for aggressive industrial horn saturation
+  function makeIndustrialDistortionCurve(k = 25) {
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+      const x = (i * 2) / n_samples - 1;
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
+  const industrialCurve = makeIndustrialDistortionCurve(18);
+
+  // Synthesizes a true heavy mechanical dual-rotor industrial factory / plant siren
   function startSirenSound(durationSeconds = 20) {
     stopSirenSound();
     if (!state.soundEnabled || !audioCtx) return;
@@ -117,43 +143,81 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const now = audioCtx.currentTime;
 
-      // Master Gain for Siren
+      // Master Gain for Industrial Siren
       const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.24, now);
+      gain.gain.setValueAtTime(0.001, now);
+      // Realistic mechanical spool-up (wind-up) ramp: rises in volume & power over 1.8 seconds
+      gain.gain.exponentialRampToValueAtTime(0.28, now + 1.8);
       gain.connect(audioCtx.destination);
 
-      // Main Siren Oscillator (Sawtooth waveform provides rich, urgent harmonic penetration)
-      const osc = audioCtx.createOscillator();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(950, now); // Center frequency 950 Hz
+      // Industrial Horn Resonator Filter (Acoustic megaphone/steel horn body)
+      const hornFilter = audioCtx.createBiquadFilter();
+      hornFilter.type = 'lowpass';
+      hornFilter.frequency.setValueAtTime(1600, now);
+      hornFilter.Q.setValueAtTime(2.5, now);
+      hornFilter.connect(gain);
 
-      // LFO for continuous wailing pitch modulation (rises and falls smoothly)
+      // Waveshaper for raw metallic industrial horn bite
+      const shaper = audioCtx.createWaveShaper();
+      shaper.curve = industrialCurve;
+      shaper.oversample = '2x';
+      shaper.connect(hornFilter);
+
+      // Dual-Rotor Mixer Gain
+      const mixer = audioCtx.createGain();
+      mixer.gain.setValueAtTime(0.5, now);
+      mixer.connect(shaper);
+
+      // Rotor 1 (Lower Port - Heavy fundamental drone: 380 Hz base, sweeps +/- 100 Hz: 280 Hz - 480 Hz)
+      const oscLower = audioCtx.createOscillator();
+      oscLower.type = 'sawtooth';
+      oscLower.frequency.setValueAtTime(380, now);
+
+      // Rotor 2 (Upper Port - Dual-port 5:6 minor third dissonant tone: 456 Hz base, sweeps +/- 120 Hz: 336 Hz - 576 Hz)
+      const oscUpper = audioCtx.createOscillator();
+      oscUpper.type = 'sawtooth';
+      oscUpper.frequency.setValueAtTime(456, now);
+
+      // Slow mechanical motor LFO (0.28 Hz = 3.6-second heavy industrial wail cycle)
       const lfo = audioCtx.createOscillator();
       lfo.type = 'triangle';
-      lfo.frequency.setValueAtTime(0.625, now); // 1.6-second wail cycle (up and down)
+      lfo.frequency.setValueAtTime(0.28, now);
 
-      const lfoGain = audioCtx.createGain();
-      lfoGain.gain.setValueAtTime(350, now); // Sweeps between 600 Hz (950-350) and 1300 Hz (950+350)
+      // Lower Rotor Frequency Modulation
+      const lfoGainLower = audioCtx.createGain();
+      lfoGainLower.gain.setValueAtTime(100, now);
+      lfo.connect(lfoGainLower);
+      lfoGainLower.connect(oscLower.frequency);
 
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
-      osc.connect(gain);
+      // Upper Rotor Frequency Modulation (maintains exact industrial harmonic ratio)
+      const lfoGainUpper = audioCtx.createGain();
+      lfoGainUpper.gain.setValueAtTime(120, now);
+      lfo.connect(lfoGainUpper);
+      lfoGainUpper.connect(oscUpper.frequency);
 
-      osc.start(now);
+      // Connect dual rotors to mixer
+      oscLower.connect(mixer);
+      oscUpper.connect(mixer);
+
+      oscLower.start(now);
+      oscUpper.start(now);
       lfo.start(now);
 
-      // Smooth release at end of duration
-      gain.gain.setValueAtTime(0.24, now + durationSeconds - 0.5);
+      // Mechanical wind-down at end of duration
+      gain.gain.setValueAtTime(0.28, now + durationSeconds - 2.0);
       gain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
-      osc.stop(now + durationSeconds + 0.05);
-      lfo.stop(now + durationSeconds + 0.05);
+      oscLower.stop(now + durationSeconds + 0.1);
+      oscUpper.stop(now + durationSeconds + 0.1);
+      lfo.stop(now + durationSeconds + 0.1);
 
-      sirenNodes = { osc, lfo, gain, lfoGain };
+      sirenNodes = { oscLower, oscUpper, lfo, lfoGainLower, lfoGainUpper, hornFilter, shaper, gain };
 
       sirenNodes.stopTimeout = setTimeout(() => {
         stopSirenSound();
       }, durationSeconds * 1000);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Industrial siren error:', e);
+    }
   }
 
   function stopSirenSound() {
@@ -166,17 +230,33 @@
         sirenNodes.gain.gain.setValueAtTime(0, audioCtx.currentTime);
       } catch (e) {}
     }
-    if (sirenNodes.osc) {
-      try { sirenNodes.osc.stop(); sirenNodes.osc.disconnect(); } catch (e) {}
-      sirenNodes.osc = null;
+    if (sirenNodes.oscLower) {
+      try { sirenNodes.oscLower.stop(); sirenNodes.oscLower.disconnect(); } catch (e) {}
+      sirenNodes.oscLower = null;
+    }
+    if (sirenNodes.oscUpper) {
+      try { sirenNodes.oscUpper.stop(); sirenNodes.oscUpper.disconnect(); } catch (e) {}
+      sirenNodes.oscUpper = null;
     }
     if (sirenNodes.lfo) {
       try { sirenNodes.lfo.stop(); sirenNodes.lfo.disconnect(); } catch (e) {}
       sirenNodes.lfo = null;
     }
-    if (sirenNodes.lfoGain) {
-      try { sirenNodes.lfoGain.disconnect(); } catch (e) {}
-      sirenNodes.lfoGain = null;
+    if (sirenNodes.lfoGainLower) {
+      try { sirenNodes.lfoGainLower.disconnect(); } catch (e) {}
+      sirenNodes.lfoGainLower = null;
+    }
+    if (sirenNodes.lfoGainUpper) {
+      try { sirenNodes.lfoGainUpper.disconnect(); } catch (e) {}
+      sirenNodes.lfoGainUpper = null;
+    }
+    if (sirenNodes.hornFilter) {
+      try { sirenNodes.hornFilter.disconnect(); } catch (e) {}
+      sirenNodes.hornFilter = null;
+    }
+    if (sirenNodes.shaper) {
+      try { sirenNodes.shaper.disconnect(); } catch (e) {}
+      sirenNodes.shaper = null;
     }
     if (sirenNodes.gain) {
       try { sirenNodes.gain.disconnect(); } catch (e) {}
@@ -298,14 +378,14 @@
 
   // Send Pocket System Notification with 10-second vibration
   function sendPocketNotification(q) {
-    const title = `🚨 20s SIREN MCQ ALERT [${q.subject_code || q.subject}]`;
+    const title = `🚨 20s INDUSTRIAL SIREN [${q.subject_code || q.subject}]`;
     const snippet = q.question.length > 85 ? q.question.slice(0, 85) + '...' : q.question;
-    const body = `${snippet}\n⚡ 20s siren & 10s vibration ringing! Tap to answer!`;
+    const body = `${snippet}\n⚡ 20s industrial plant siren & 10s vibration ringing! Tap to answer!`;
     const options = {
       body: body,
       icon: './icon.png',
       badge: './icon.png',
-      tag: 'pocket-mcq-siren',
+      tag: 'pocket-mcq-industrial-siren',
       renotify: true,
       requireInteraction: true,
       // 10 full seconds vibration pattern (10,000 ms)
@@ -698,9 +778,9 @@
 
     if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
 
-    // Trigger urgent 20-second siren & 10-second vibration
+    // Trigger urgent 20-second industrial siren & 10-second vibration
     startPocketEmergencyAlarm();
-    showToast('MCQ Alert! 20s Siren & 10s Vibration ringing...');
+    showToast('MCQ Alert! 20s Industrial Siren & 10s Vibration ringing...');
   }
 
   // =========================================================================
@@ -781,16 +861,16 @@
       state.pocketIntervalMinutes = parseInt(btn.dataset.interval, 10) || 5;
     });
 
-    // Test Sound, Vibration & Notification button (20s siren & 10s vibration)
+    // Test Sound, Vibration & Notification button (20s industrial siren & 10s vibration)
     DOM.btnTestNotification.addEventListener('click', async () => {
       await requestNotificationPermission();
       startPocketEmergencyAlarm();
       sendPocketNotification({
         subject_code: 'TEST',
-        subject: 'Demo 20s Siren Alert',
-        question: 'This is a test: 20-second siren sound and 10-second vibration are ringing!'
+        subject: 'Demo 20s Industrial Siren Alert',
+        question: 'This is a test: 20-second industrial siren and 10-second vibration are ringing!'
       });
-      showToast('20s Siren & 10s Vibration triggered!');
+      showToast('20s Industrial Siren & 10s Vibration triggered!');
     });
 
     // Pocket Standby View: Answer Question Now
