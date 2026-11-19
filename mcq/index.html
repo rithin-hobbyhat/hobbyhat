@@ -32,6 +32,15 @@
       </div>
       
       <div class="nav-right">
+        <!-- Pocket Mode Top Bar Widget (Visible while playing) -->
+        <div class="nav-pocket-group" id="nav-pocket-group" style="display: none;">
+          <span class="nav-pocket-timer" id="nav-pocket-timer" title="Time until next 5-minute MCQ siren alert">⏱️ 05:00</span>
+          <button type="button" id="btn-nav-pocket-toggle" class="btn-nav-pocket-toggle" title="Toggle Pocket Study Mode ON/OFF">
+            <span class="pocket-pulse-dot" id="nav-pocket-dot"></span>
+            <span id="nav-pocket-label">Pocket: ON</span>
+          </button>
+        </div>
+
         <button id="btn-sound" class="nav-icon-btn" title="Toggle Sound Feedback" aria-label="Toggle Sound">
           <svg id="sound-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -227,9 +236,13 @@
             <div class="stat-pill correct"><span id="stat-correct">0</span> Correct</div>
             <div class="stat-pill wrong"><span id="stat-wrong">0</span> Incorrect</div>
             <div class="stat-pill remaining"><span id="stat-remaining">50</span> Remaining</div>
-            <button type="button" id="btn-stop-pocket-mode" class="btn-stop-pocket-pill" style="display: none;" title="Stop Pocket Mode">
-              <span class="pocket-pulse-dot"></span> Stop Pocket Mode
-            </button>
+            <div class="pocket-topbar-widget" id="scoreboard-pocket-widget" style="display: none;">
+              <span class="pocket-timer-pill" id="scoreboard-pocket-timer">⏱️ 05:00</span>
+              <button type="button" id="btn-scoreboard-pocket-toggle" class="btn-pocket-toggle-pill" title="Toggle Pocket Study Mode ON/OFF">
+                <span class="pocket-pulse-dot" id="scoreboard-pocket-dot"></span>
+                <span id="scoreboard-pocket-label">Pocket: ON</span>
+              </button>
+            </div>
             <button type="button" id="btn-grid-toggle" class="btn-grid-pill" title="Question Jump Grid">
               Grid
             </button>

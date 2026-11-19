@@ -418,12 +418,17 @@
     btnSound: document.getElementById('btn-sound'),
     soundIconSvg: document.getElementById('sound-icon-svg'),
     navSubtitle: document.getElementById('nav-subtitle'),
+    navPocketGroup: document.getElementById('nav-pocket-group'),
+    navPocketTimer: document.getElementById('nav-pocket-timer'),
+    btnNavPocketToggle: document.getElementById('btn-nav-pocket-toggle'),
+    navPocketDot: document.getElementById('nav-pocket-dot'),
+    navPocketLabel: document.getElementById('nav-pocket-label'),
 
     // Setup Screen
     subjectsContainer: document.getElementById('subjects-container'),
     subjectCounter: document.getElementById('subject-selection-counter'),
     btnSelectAll: document.getElementById('btn-select-all'),
-    btnClearAll: document.getElementById('btn-clear-all'),
+    btnClearAll: document.getElementById('btnClearAll') || document.getElementById('btn-clear-all'),
     subjectSearchInput: document.getElementById('subject-search-input'),
     chkWrongExp: document.getElementById('chk-wrong-explanation'),
     chkAutoScroll: document.getElementById('chk-auto-scroll'),
@@ -445,6 +450,13 @@
     statWrong: document.getElementById('stat-wrong'),
     statRemaining: document.getElementById('stat-remaining'),
     btnGridToggle: document.getElementById('btn-grid-toggle'),
+
+    // Scoreboard Pocket Top Bar Widget
+    scoreboardPocketWidget: document.getElementById('scoreboard-pocket-widget'),
+    scoreboardPocketTimer: document.getElementById('scoreboard-pocket-timer'),
+    btnScoreboardPocketToggle: document.getElementById('btn-scoreboard-pocket-toggle'),
+    scoreboardPocketDot: document.getElementById('scoreboard-pocket-dot'),
+    scoreboardPocketLabel: document.getElementById('scoreboard-pocket-label'),
 
     // Pocket Standby View
     pocketStandbyView: document.getElementById('pocket-standby-view'),
@@ -539,6 +551,7 @@
       DOM.navSubtitle.textContent = 'Performance Report';
       stopPocketTimer();
     }
+    updatePocketTopBar(state.pocketMode);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -692,13 +705,62 @@
     });
   }
 
+  // Updates Top Bar Pocket Timer & ON/OFF Buttons (Navbar & Scoreboard)
+  function updatePocketTopBar(isActive, timeStr) {
+    const isPlaying = DOM.screenPractice && DOM.screenPractice.classList.contains('active');
+    
+    // Top bar in navbar
+    if (DOM.navPocketGroup) {
+      DOM.navPocketGroup.style.display = isPlaying ? 'inline-flex' : 'none';
+    }
+    // Top bar in scoreboard stats
+    if (DOM.scoreboardPocketWidget) {
+      DOM.scoreboardPocketWidget.style.display = isPlaying ? 'inline-flex' : 'none';
+    }
+
+    const isModeOn = !!state.pocketMode;
+    const statusText = isModeOn ? 'Pocket: ON' : 'Pocket: OFF';
+    const displayTime = timeStr || (isModeOn ? `${String(state.pocketIntervalMinutes).padStart(2, '0')}:00` : 'Off');
+
+    if (DOM.navPocketLabel) DOM.navPocketLabel.textContent = statusText;
+    if (DOM.scoreboardPocketLabel) DOM.scoreboardPocketLabel.textContent = statusText;
+
+    if (DOM.navPocketTimer) {
+      DOM.navPocketTimer.textContent = isModeOn ? `⏱️ ${displayTime}` : '⏱️ Off';
+    }
+    if (DOM.scoreboardPocketTimer) {
+      DOM.scoreboardPocketTimer.textContent = isModeOn ? `⏱️ ${displayTime}` : '⏱️ Off';
+    }
+
+    if (DOM.navPocketDot) {
+      DOM.navPocketDot.style.display = isModeOn ? 'inline-block' : 'none';
+    }
+    if (DOM.scoreboardPocketDot) {
+      DOM.scoreboardPocketDot.style.display = isModeOn ? 'inline-block' : 'none';
+    }
+
+    const toggleBtns = [DOM.btnNavPocketToggle, DOM.btnScoreboardPocketToggle].filter(Boolean);
+    toggleBtns.forEach(btn => {
+      if (isModeOn) {
+        btn.classList.add('active');
+        btn.title = 'Pocket Study Mode is ON (Click to turn OFF)';
+      } else {
+        btn.classList.remove('active');
+        btn.title = 'Pocket Study Mode is OFF (Click to turn ON)';
+      }
+    });
+  }
+
   function handleWorkerTick() {
-    if (!state.pocketStandbyActive || !state.targetAlertTime) return;
+    if (!state.pocketMode || !state.targetAlertTime) return;
 
     const remainingSec = Math.max(0, Math.round((state.targetAlertTime - Date.now()) / 1000));
     const mins = Math.floor(remainingSec / 60);
     const secs = remainingSec % 60;
     const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    if (DOM.navPocketTimer) DOM.navPocketTimer.textContent = `⏱️ ${timeStr}`;
+    if (DOM.scoreboardPocketTimer) DOM.scoreboardPocketTimer.textContent = `⏱️ ${timeStr}`;
 
     if (DOM.standbyCountdownText) {
       DOM.standbyCountdownText.textContent = timeStr;
@@ -714,11 +776,11 @@
     state.pocketStandbyActive = true;
     state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
 
-    // Show Standby view, hide question card
-    DOM.pocketStandbyView.style.display = 'block';
-    DOM.practiceCardWrapper.style.display = 'none';
-    DOM.standbyIntervalBadge.textContent = `${state.pocketIntervalMinutes}-Min Alert Active`;
-    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
+    // Keep MCQ question card visible in natural flow! Never hide questions!
+    if (DOM.pocketStandbyView) DOM.pocketStandbyView.style.display = 'none';
+    if (DOM.practiceCardWrapper) DOM.practiceCardWrapper.style.display = 'block';
+
+    updatePocketTopBar(true);
 
     if (timerWorker) {
       timerWorker.postMessage('start');
@@ -729,6 +791,7 @@
     state.pocketStandbyActive = false;
     state.targetAlertTime = null;
     stopPocketEmergencyAlarm();
+    updatePocketTopBar(false);
     if (timerWorker) {
       timerWorker.postMessage('stop');
     }
@@ -736,49 +799,73 @@
 
   function stopPocketStudyMode() {
     state.pocketMode = false;
+    if (DOM.chkPocketMode) DOM.chkPocketMode.checked = false;
     stopPocketTimer();
     stopPocketEmergencyAlarm();
     if (wrongAnswerResumeTimer) {
       clearTimeout(wrongAnswerResumeTimer);
       wrongAnswerResumeTimer = null;
     }
-    DOM.chkPocketMode.checked = false;
-    DOM.pocketOptionsSub.style.display = 'none';
-    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'none';
-    DOM.pocketStandbyView.style.display = 'none';
-    DOM.practiceCardWrapper.style.display = 'block';
+    if (DOM.pocketOptionsSub) DOM.pocketOptionsSub.style.display = 'none';
+    if (DOM.pocketStandbyView) DOM.pocketStandbyView.style.display = 'none';
+    if (DOM.practiceCardWrapper) DOM.practiceCardWrapper.style.display = 'block';
     if (DOM.btnPocketResume) DOM.btnPocketResume.style.display = 'none';
-    showToast('Pocket Study Mode stopped. Manual practice active.');
+    updatePocketTopBar(false);
+    showToast('Pocket Study Mode turned OFF');
+  }
+
+  async function startPocketStudyMode() {
+    state.pocketMode = true;
+    if (DOM.chkPocketMode) DOM.chkPocketMode.checked = true;
+    await requestNotificationPermission();
+    startPocketTimer();
+    updatePocketTopBar(true);
+    showToast(`Pocket Study Mode ON: ${state.pocketIntervalMinutes}-minute alert cycle active`);
+  }
+
+  async function togglePocketStudyMode() {
+    if (state.pocketMode) {
+      stopPocketStudyMode();
+    } else {
+      await startPocketStudyMode();
+    }
   }
 
   // Fires when 5-min timer completes
   function triggerPocketQuestionAlert() {
-    stopPocketTimer();
+    stopPocketEmergencyAlarm();
 
-    // Advance to next question
-    if (state.currentIndex < state.activePool.length - 1) {
-      state.currentIndex++;
-    } else {
-      state.currentIndex = 0; // Loop or finish
+    // If current question has already been answered, advance to next question
+    const currentAnswered = !!state.userAnswers[state.currentIndex];
+    if (currentAnswered) {
+      if (state.currentIndex < state.activePool.length - 1) {
+        state.currentIndex++;
+      } else {
+        state.currentIndex = 0; // Loop or finish
+      }
+      renderCurrentQuestion();
     }
 
-    const nextQ = state.activePool[state.currentIndex];
+    const currentQ = state.activePool[state.currentIndex];
 
     // Push system notification with 10-second vibration
-    if (nextQ) {
-      sendPocketNotification(nextQ);
+    if (currentQ) {
+      sendPocketNotification(currentQ);
     }
 
-    // Render new question and bring card back
-    DOM.pocketStandbyView.style.display = 'none';
-    DOM.practiceCardWrapper.style.display = 'block';
-    renderCurrentQuestion();
-
-    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
+    // Keep question card visible
+    if (DOM.pocketStandbyView) DOM.pocketStandbyView.style.display = 'none';
+    if (DOM.practiceCardWrapper) DOM.practiceCardWrapper.style.display = 'block';
 
     // Trigger urgent 20-second industrial siren & 10-second vibration
     startPocketEmergencyAlarm();
-    showToast('MCQ Alert! 20s Industrial Siren & 10s Vibration ringing...');
+    showToast('🚨 5-Minute MCQ Alert! 20s Industrial Siren & 10s Vibration ringing...');
+
+    // Automatically loop: reset 5-minute timer so next alert fires in 5 minutes!
+    if (state.pocketMode) {
+      state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
+      updatePocketTopBar(true);
+    }
   }
 
   // =========================================================================
@@ -890,6 +977,14 @@
       DOM.pocketAlarmBanner.addEventListener('click', () => {
         silenceSirenOnly();
       });
+    }
+
+    // Top Bar Pocket Study Mode ON/OFF Toggles
+    if (DOM.btnNavPocketToggle) {
+      DOM.btnNavPocketToggle.addEventListener('click', togglePocketStudyMode);
+    }
+    if (DOM.btnScoreboardPocketToggle) {
+      DOM.btnScoreboardPocketToggle.addEventListener('click', togglePocketStudyMode);
     }
 
     // Stop Pocket Study Mode Buttons
@@ -1024,17 +1119,17 @@
       };
 
       showScreen('practice');
-      DOM.pocketStandbyView.style.display = 'none';
+      if (DOM.pocketStandbyView) DOM.pocketStandbyView.style.display = 'none';
       DOM.practiceCardWrapper.style.display = 'block';
       renderCurrentQuestion();
       updateScoreboard();
 
       if (state.pocketMode) {
         await requestNotificationPermission();
-        if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
-        showToast(`Pocket Mode Active: 5-minute interval started`);
+        startPocketTimer();
+        showToast(`Pocket Mode Active: 5-minute alerts started`);
       } else {
-        if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'none';
+        updatePocketTopBar(false);
       }
     } catch (err) {
       console.error('Failed to prepare practice pool:', err);
@@ -1089,7 +1184,7 @@
 
     // Reset Explanation box
     DOM.explanationBox.style.display = 'none';
-    DOM.btnPocketResume.style.display = 'none';
+    if (DOM.btnPocketResume) DOM.btnPocketResume.style.display = 'none';
 
     // Tags & statement
     DOM.qSubjectTag.textContent = `${q.subject_code ? '[' + q.subject_code + '] ' : ''}${q.subject}`;
@@ -1148,9 +1243,6 @@
     // If already answered and was wrong, show description automatically
     if (isAnswered && !answerRecord.isCorrect) {
       showExplanation(q, false);
-      if (state.pocketMode) {
-        DOM.btnPocketResume.style.display = 'block';
-      }
     }
 
     // Update Next button text
@@ -1256,33 +1348,15 @@
 
     updateScoreboard();
 
-    // INNOVATION: POCKET MODE CONTINUOUS LOOP
-    if (state.pocketMode) {
-      if (isCorrect) {
-        // "After we clicking right answer, it will go."
-        // Auto-returns to 5-minute standby countdown
-        showToast(`Correct! Next MCQ alert in ${state.pocketIntervalMinutes} minutes.`);
-        setTimeout(() => {
-          if (state.pocketMode) startPocketTimer();
-        }, 1200);
-      } else {
-        // "if we select wrong answer, the discription about right answer should show."
-        showExplanation(q, false);
-        DOM.btnPocketResume.style.display = 'block';
-        showToast('Review explanation. Auto-resumes 5-min timer in 25s...');
-        // Auto-resume timer ensures continuous 5-minute alerts even if user doesn't click resume
-        if (wrongAnswerResumeTimer) clearTimeout(wrongAnswerResumeTimer);
-        wrongAnswerResumeTimer = setTimeout(() => {
-          if (state.pocketMode && !state.pocketStandbyActive) {
-            startPocketTimer();
-          }
-        }, 25000);
-      }
-    } else {
-      // Normal practice mode
-      if (!isCorrect && state.showExplanationOnWrong) {
-        showExplanation(q, false);
-      }
+    // Silence industrial siren if it was ringing when the user answers
+    if (alarmState.active) {
+      silenceSirenOnly();
+    }
+
+    // Natural MCQ practice flow:
+    // When wrong answer is selected, show description about right answer
+    if (!isCorrect) {
+      showExplanation(q, false);
     }
   }
 

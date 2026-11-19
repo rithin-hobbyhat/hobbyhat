@@ -116,6 +116,23 @@ html, body {
   color: var(--text-secondary);
 }
 
+@media (max-width: 520px) {
+  .brand-sub {
+    display: none;
+  }
+  .nav-pocket-group {
+    padding: 2px 6px;
+    gap: 5px;
+  }
+  .nav-pocket-timer {
+    font-size: 0.72rem;
+  }
+  .btn-nav-pocket-toggle {
+    padding: 2px 7px;
+    font-size: 0.68rem;
+  }
+}
+
 .nav-right {
   display: flex;
   align-items: center;
@@ -1510,6 +1527,99 @@ html, body {
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Top Bar Pocket Study Mode Widget (Navbar & Scoreboard) */
+.nav-pocket-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background-color: #121214;
+  border: 1px solid #27272A;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.nav-pocket-timer {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 0.5px;
+}
+
+.btn-nav-pocket-toggle {
+  background-color: #18181B;
+  color: #D4D4D8;
+  border: 1px solid #3F3F46;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-nav-pocket-toggle:hover {
+  background-color: #27272A;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+}
+
+.btn-nav-pocket-toggle.active {
+  background-color: #000000;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
+}
+
+.pocket-topbar-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #121214;
+  border: 1px solid #27272A;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.pocket-timer-pill {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 0.5px;
+}
+
+.btn-pocket-toggle-pill {
+  background-color: #18181B;
+  color: #D4D4D8;
+  border: 1px solid #3F3F46;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-pocket-toggle-pill:hover {
+  background-color: #27272A;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+}
+
+.btn-pocket-toggle-pill.active {
+  background-color: #000000;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
 }
 
 /* Stop Pocket Mode Button */
