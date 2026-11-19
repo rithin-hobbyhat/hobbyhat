@@ -24,6 +24,12 @@
     "count": 700
   },
   {
+    "name": "DRIVER-MECHANIC",
+    "code": "DM",
+    "slug": "dm",
+    "count": 100
+  },
+  {
     "name": "ELECTRICAL SYSTEM",
     "code": "ELS",
     "slug": "els",
