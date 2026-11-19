@@ -86,83 +86,164 @@
     }
   }
 
-  // 8-Second Pocket Alarm & Pressure State
+  // 20-Second Emergency Siren & 10-Second Vibration Engine
+  let sirenNodes = {
+    osc: null,
+    lfo: null,
+    gain: null,
+    lfoGain: null,
+    stopTimeout: null
+  };
+
+  let vibrationState = {
+    intervalId: null,
+    timeoutId: null
+  };
+
   const alarmState = {
     active: false,
     timerId: null,
-    vibrateInterval: null,
-    audioInterval: null,
     uiInterval: null,
     endTime: 0
   };
 
-  // Urgent dual-pitch alarm pulse (repeats during the 8-second window)
-  function playUrgentAlarmTone() {
+  let wrongAnswerResumeTimer = null;
+
+  // Synthesizes a realistic emergency wailing siren using Web Audio API
+  function startSirenSound(durationSeconds = 20) {
+    stopSirenSound();
     if (!state.soundEnabled || !audioCtx) return;
     try {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const now = audioCtx.currentTime;
 
-      // High-urgency dual frequency tone (A5 -> D6)
-      const tones = [
-        { freq: 880, start: 0, dur: 0.14 },
-        { freq: 1175, start: 0.16, dur: 0.22 }
-      ];
+      // Master Gain for Siren
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.24, now);
+      gain.connect(audioCtx.destination);
 
-      tones.forEach(t => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(t.freq, now + t.start);
-        gain.gain.setValueAtTime(0.18, now + t.start);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t.start + t.dur);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(now + t.start);
-        osc.stop(now + t.start + t.dur);
-      });
+      // Main Siren Oscillator (Sawtooth waveform provides rich, urgent harmonic penetration)
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(950, now); // Center frequency 950 Hz
+
+      // LFO for continuous wailing pitch modulation (rises and falls smoothly)
+      const lfo = audioCtx.createOscillator();
+      lfo.type = 'triangle';
+      lfo.frequency.setValueAtTime(0.625, now); // 1.6-second wail cycle (up and down)
+
+      const lfoGain = audioCtx.createGain();
+      lfoGain.gain.setValueAtTime(350, now); // Sweeps between 600 Hz (950-350) and 1300 Hz (950+350)
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+      osc.connect(gain);
+
+      osc.start(now);
+      lfo.start(now);
+
+      // Smooth release at end of duration
+      gain.gain.setValueAtTime(0.24, now + durationSeconds - 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
+      osc.stop(now + durationSeconds + 0.05);
+      lfo.stop(now + durationSeconds + 0.05);
+
+      sirenNodes = { osc, lfo, gain, lfoGain };
+
+      sirenNodes.stopTimeout = setTimeout(() => {
+        stopSirenSound();
+      }, durationSeconds * 1000);
     } catch (e) {}
   }
 
-  // Starts 8-Second Pressure Notification with Vibration & Sound
-  function start8SecondPocketAlarm() {
-    stop8SecondPocketAlarm();
-    alarmState.active = true;
-    const durationMs = 8000;
-    alarmState.endTime = Date.now() + durationMs;
-
-    // 1. Play urgent audio pulse every 750ms for 8 seconds
-    playUrgentAlarmTone();
-    alarmState.audioInterval = setInterval(() => {
-      if (Date.now() >= alarmState.endTime) {
-        stop8SecondPocketAlarm();
-      } else {
-        playUrgentAlarmTone();
-      }
-    }, 750);
-
-    // 2. 8-Second Smartphone Vibration
-    if (navigator.vibrate) {
+  function stopSirenSound() {
+    if (sirenNodes.stopTimeout) {
+      clearTimeout(sirenNodes.stopTimeout);
+      sirenNodes.stopTimeout = null;
+    }
+    if (sirenNodes.gain && audioCtx) {
       try {
-        // Full 8-second vibration pattern (8,000 ms)
-        const pattern = [600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 800];
-        navigator.vibrate(pattern);
-
-        // Keep re-triggering pulse in case mobile OS limits single vibration call
-        alarmState.vibrateInterval = setInterval(() => {
-          if (Date.now() >= alarmState.endTime) {
-            if (alarmState.vibrateInterval) clearInterval(alarmState.vibrateInterval);
-          } else {
-            try { navigator.vibrate([600, 150]); } catch (e) {}
-          }
-        }, 750);
+        sirenNodes.gain.gain.setValueAtTime(0, audioCtx.currentTime);
       } catch (e) {}
     }
+    if (sirenNodes.osc) {
+      try { sirenNodes.osc.stop(); sirenNodes.osc.disconnect(); } catch (e) {}
+      sirenNodes.osc = null;
+    }
+    if (sirenNodes.lfo) {
+      try { sirenNodes.lfo.stop(); sirenNodes.lfo.disconnect(); } catch (e) {}
+      sirenNodes.lfo = null;
+    }
+    if (sirenNodes.lfoGain) {
+      try { sirenNodes.lfoGain.disconnect(); } catch (e) {}
+      sirenNodes.lfoGain = null;
+    }
+    if (sirenNodes.gain) {
+      try { sirenNodes.gain.disconnect(); } catch (e) {}
+      sirenNodes.gain = null;
+    }
+  }
 
-    // 3. Visual 8-Second UI Progress Bar & Countdown
+  // 10-Second Vibration Engine
+  function start10SecondVibration() {
+    stopVibration();
+    if (!navigator.vibrate) return;
+
+    try {
+      // 10-second vibration pattern: 800ms buzz, 200ms pause x 10 = 10,000 ms (10 seconds)
+      const pattern10s = [
+        800, 200, 800, 200, 800, 200, 800, 200, 800, 200,
+        800, 200, 800, 200, 800, 200, 800, 200, 800, 200
+      ];
+      navigator.vibrate(pattern10s);
+
+      // Interval pulse keeps vibrating for 10 seconds without early OS cutoff
+      const vibrateEndTime = Date.now() + 10000;
+      vibrationState.intervalId = setInterval(() => {
+        if (Date.now() >= vibrateEndTime) {
+          stopVibration();
+        } else {
+          try { navigator.vibrate([800, 200]); } catch (e) {}
+        }
+      }, 1000);
+
+      vibrationState.timeoutId = setTimeout(() => {
+        stopVibration();
+      }, 10000);
+    } catch (e) {}
+  }
+
+  function stopVibration() {
+    if (vibrationState.intervalId) {
+      clearInterval(vibrationState.intervalId);
+      vibrationState.intervalId = null;
+    }
+    if (vibrationState.timeoutId) {
+      clearTimeout(vibrationState.timeoutId);
+      vibrationState.timeoutId = null;
+    }
+    if (navigator.vibrate) {
+      try { navigator.vibrate(0); } catch (e) {}
+    }
+  }
+
+  // Starts 20-Second Emergency Siren & 10-Second Vibration Alert
+  function startPocketEmergencyAlarm() {
+    stopPocketEmergencyAlarm();
+    alarmState.active = true;
+    const durationMs = 20000;
+    alarmState.endTime = Date.now() + durationMs;
+
+    // 1. Start 20-Second Emergency Siren Sound
+    startSirenSound(20);
+
+    // 2. Start 10-Second Smartphone Vibration
+    start10SecondVibration();
+
+    // 3. Visual 20-Second Countdown & Pressure Bar
     if (DOM.pocketAlarmBanner) {
       DOM.pocketAlarmBanner.style.display = 'block';
-      if (DOM.alarmCountdownSec) DOM.alarmCountdownSec.textContent = '8s';
+      if (DOM.alarmCountdownSec) DOM.alarmCountdownSec.textContent = '20s';
       if (DOM.alarmTimerFill) DOM.alarmTimerFill.style.width = '100%';
 
       alarmState.uiInterval = setInterval(() => {
@@ -174,34 +255,29 @@
           DOM.alarmTimerFill.style.width = `${pct}%`;
         }
         if (remainingMs <= 0) {
-          stop8SecondPocketAlarm();
+          stopPocketEmergencyAlarm();
         }
       }, 100);
     }
 
-    // 4. Master timeout to stop after 8 seconds
+    // 4. Master timeout to stop after 20 seconds
     alarmState.timerId = setTimeout(() => {
-      stop8SecondPocketAlarm();
+      stopPocketEmergencyAlarm();
     }, durationMs);
   }
 
-  // Stops and silences 8-second alarm immediately
-  function stop8SecondPocketAlarm() {
+  // Stops and silences all alarms immediately
+  function stopPocketEmergencyAlarm() {
     if (!alarmState.active) return;
     alarmState.active = false;
 
     if (alarmState.timerId) clearTimeout(alarmState.timerId);
-    if (alarmState.audioInterval) clearInterval(alarmState.audioInterval);
-    if (alarmState.vibrateInterval) clearInterval(alarmState.vibrateInterval);
     if (alarmState.uiInterval) clearInterval(alarmState.uiInterval);
     alarmState.timerId = null;
-    alarmState.audioInterval = null;
-    alarmState.vibrateInterval = null;
     alarmState.uiInterval = null;
 
-    if (navigator.vibrate) {
-      try { navigator.vibrate(0); } catch (e) {}
-    }
+    stopSirenSound();
+    stopVibration();
 
     if (DOM.pocketAlarmBanner) {
       DOM.pocketAlarmBanner.style.display = 'none';
@@ -220,19 +296,23 @@
     return false;
   }
 
-  // Send Pocket System Notification with 8-second vibration
+  // Send Pocket System Notification with 10-second vibration
   function sendPocketNotification(q) {
-    const title = `🚨 8s MCQ ALERT [${q.subject_code || q.subject}]`;
+    const title = `🚨 20s SIREN MCQ ALERT [${q.subject_code || q.subject}]`;
     const snippet = q.question.length > 85 ? q.question.slice(0, 85) + '...' : q.question;
-    const body = `${snippet}\n⚡ 8-second vibration ringing! Tap to answer now!`;
+    const body = `${snippet}\n⚡ 20s siren & 10s vibration ringing! Tap to answer!`;
     const options = {
       body: body,
       icon: './icon.png',
       badge: './icon.png',
-      tag: 'pocket-mcq-alarm',
+      tag: 'pocket-mcq-siren',
       renotify: true,
       requireInteraction: true,
-      vibrate: [600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 600, 200, 800],
+      // 10 full seconds vibration pattern (10,000 ms)
+      vibrate: [
+        800, 200, 800, 200, 800, 200, 800, 200, 800, 200,
+        800, 200, 800, 200, 800, 200, 800, 200, 800, 200
+      ],
       data: { url: './index.html' }
     };
 
@@ -294,9 +374,11 @@
     standbyIntervalBadge: document.getElementById('standby-interval-badge'),
     standbyCountdownText: document.getElementById('standby-countdown-text'),
     btnStandbyAnswerNow: document.getElementById('btn-standby-answer-now'),
+    btnStandbyStopPocket: document.getElementById('btn-standby-stop-pocket'),
     btnPocketResume: document.getElementById('btn-pocket-resume'),
+    btnStopPocketMode: document.getElementById('btn-stop-pocket-mode'),
 
-    // 8-Second Alarm Pressure Banner
+    // 20-Second Siren & 10-Second Vibration Alert Banner
     pocketAlarmBanner: document.getElementById('pocket-alarm-banner'),
     alarmCountdownSec: document.getElementById('alarm-countdown-seconds'),
     alarmTimerFill: document.getElementById('alarm-timer-fill'),
@@ -550,6 +632,7 @@
   }
 
   function startPocketTimer() {
+    if (!state.pocketMode) return;
     state.pocketStandbyActive = true;
     state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
 
@@ -557,6 +640,7 @@
     DOM.pocketStandbyView.style.display = 'block';
     DOM.practiceCardWrapper.style.display = 'none';
     DOM.standbyIntervalBadge.textContent = `${state.pocketIntervalMinutes}-Min Alert Active`;
+    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
 
     if (timerWorker) {
       timerWorker.postMessage('start');
@@ -566,10 +650,27 @@
   function stopPocketTimer() {
     state.pocketStandbyActive = false;
     state.targetAlertTime = null;
-    stop8SecondPocketAlarm();
+    stopPocketEmergencyAlarm();
     if (timerWorker) {
       timerWorker.postMessage('stop');
     }
+  }
+
+  function stopPocketStudyMode() {
+    state.pocketMode = false;
+    stopPocketTimer();
+    stopPocketEmergencyAlarm();
+    if (wrongAnswerResumeTimer) {
+      clearTimeout(wrongAnswerResumeTimer);
+      wrongAnswerResumeTimer = null;
+    }
+    DOM.chkPocketMode.checked = false;
+    DOM.pocketOptionsSub.style.display = 'none';
+    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'none';
+    DOM.pocketStandbyView.style.display = 'none';
+    DOM.practiceCardWrapper.style.display = 'block';
+    if (DOM.btnPocketResume) DOM.btnPocketResume.style.display = 'none';
+    showToast('Pocket Study Mode stopped. Manual practice active.');
   }
 
   // Fires when 5-min timer completes
@@ -585,7 +686,7 @@
 
     const nextQ = state.activePool[state.currentIndex];
 
-    // Push system notification with 8-second vibration
+    // Push system notification with 10-second vibration
     if (nextQ) {
       sendPocketNotification(nextQ);
     }
@@ -595,9 +696,11 @@
     DOM.practiceCardWrapper.style.display = 'block';
     renderCurrentQuestion();
 
-    // Trigger urgent 8-second pressure alarm with vibration, sound & visual countdown
-    start8SecondPocketAlarm();
-    showToast('MCQ Alert! 8s Alarm Ringing...');
+    if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
+
+    // Trigger urgent 20-second siren & 10-second vibration
+    startPocketEmergencyAlarm();
+    showToast('MCQ Alert! 20s Siren & 10s Vibration ringing...');
   }
 
   // =========================================================================
@@ -622,9 +725,11 @@
     DOM.btnHome.addEventListener('click', () => {
       if (DOM.screenPractice.classList.contains('active')) {
         if (confirm('Leave current practice session and return to subject setup?')) {
+          stopPocketStudyMode();
           showScreen('setup');
         }
       } else {
+        stopPocketStudyMode();
         showScreen('setup');
       }
     });
@@ -676,16 +781,16 @@
       state.pocketIntervalMinutes = parseInt(btn.dataset.interval, 10) || 5;
     });
 
-    // Test Sound, Vibration & Notification button (8-second demo)
+    // Test Sound, Vibration & Notification button (20s siren & 10s vibration)
     DOM.btnTestNotification.addEventListener('click', async () => {
       await requestNotificationPermission();
-      start8SecondPocketAlarm();
+      startPocketEmergencyAlarm();
       sendPocketNotification({
         subject_code: 'TEST',
-        subject: 'Demo 8s Alert',
-        question: 'This is an 8-second urgent alert test! Sound and vibration are ringing.'
+        subject: 'Demo 20s Siren Alert',
+        question: 'This is a test: 20-second siren sound and 10-second vibration are ringing!'
       });
-      showToast('8-Second pressure alert & vibration started!');
+      showToast('20s Siren & 10s Vibration triggered!');
     });
 
     // Pocket Standby View: Answer Question Now
@@ -696,8 +801,17 @@
       renderCurrentQuestion();
     });
 
+    // Stop Pocket Study Mode Buttons
+    if (DOM.btnStopPocketMode) {
+      DOM.btnStopPocketMode.addEventListener('click', stopPocketStudyMode);
+    }
+    if (DOM.btnStandbyStopPocket) {
+      DOM.btnStandbyStopPocket.addEventListener('click', stopPocketStudyMode);
+    }
+
     // Resume Standby Button inside explanation box
     DOM.btnPocketResume.addEventListener('click', () => {
+      if (wrongAnswerResumeTimer) clearTimeout(wrongAnswerResumeTimer);
       DOM.explanationBox.style.display = 'none';
       startPocketTimer();
       showToast(`Standby active for ${state.pocketIntervalMinutes} minutes`);
@@ -826,7 +940,10 @@
 
       if (state.pocketMode) {
         await requestNotificationPermission();
+        if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'inline-flex';
         showToast(`Pocket Mode Active: 5-minute interval started`);
+      } else {
+        if (DOM.btnStopPocketMode) DOM.btnStopPocketMode.style.display = 'none';
       }
     } catch (err) {
       console.error('Failed to prepare practice pool:', err);
@@ -994,8 +1111,8 @@
       return;
     }
 
-    // Immediately stop & silence 8-second pressure alarm when player attends question
-    stop8SecondPocketAlarm();
+    // Immediately stop & silence 20s siren and 10s vibration when player attends question
+    stopPocketEmergencyAlarm();
 
     const q = state.activePool[state.currentIndex];
     if (!q) return;
@@ -1048,20 +1165,27 @@
 
     updateScoreboard();
 
-    // INNOVATION: POCKET MODE LOGIC
+    // INNOVATION: POCKET MODE CONTINUOUS LOOP
     if (state.pocketMode) {
       if (isCorrect) {
         // "After we clicking right answer, it will go."
-        // Show brief 1.2s check, then put into 5-minute standby!
+        // Auto-returns to 5-minute standby countdown
         showToast(`Correct! Next MCQ alert in ${state.pocketIntervalMinutes} minutes.`);
         setTimeout(() => {
-          startPocketTimer();
+          if (state.pocketMode) startPocketTimer();
         }, 1200);
       } else {
         // "if we select wrong answer, the discription about right answer should show."
         showExplanation(q, false);
         DOM.btnPocketResume.style.display = 'block';
-        showToast('Incorrect. Review description, then resume 5-min timer.');
+        showToast('Review explanation. Auto-resumes 5-min timer in 25s...');
+        // Auto-resume timer ensures continuous 5-minute alerts even if user doesn't click resume
+        if (wrongAnswerResumeTimer) clearTimeout(wrongAnswerResumeTimer);
+        wrongAnswerResumeTimer = setTimeout(() => {
+          if (state.pocketMode && !state.pocketStandbyActive) {
+            startPocketTimer();
+          }
+        }, 25000);
       }
     } else {
       // Normal practice mode
@@ -1140,7 +1264,7 @@
 
   function navigateQuestion(newIndex) {
     if (newIndex < 0 || newIndex >= state.activePool.length) return;
-    stop8SecondPocketAlarm();
+    stopPocketEmergencyAlarm();
     state.currentIndex = newIndex;
     renderCurrentQuestion();
     window.scrollTo({ top: 0, behavior: 'smooth' });

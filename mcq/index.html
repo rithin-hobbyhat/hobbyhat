@@ -166,8 +166,8 @@
                 <input type="checkbox" id="chk-pocket-mode">
                 <span class="switch-slider"></span>
                 <span class="label-text">
-                  <strong>Enable 5-Minute Pocket Alerts</strong>
-                  <small>Urgent 8-second vibration and sound notification every 5 minutes while minimized</small>
+                  <strong>Enable Pocket Study Mode (Continuous 5-Min Alerts)</strong>
+                  <small>Plays 20s emergency siren & 10s vibration every 5 minutes until you stop it</small>
                 </span>
               </label>
             </div>
@@ -182,7 +182,7 @@
                 </div>
               </div>
               <div style="margin-top: 10px;">
-                <button type="button" class="btn-text" id="btn-test-notification">Test 8-Second Alarm, Vibration & Notification</button>
+                <button type="button" class="btn-text" id="btn-test-notification">Test 20s Siren, 10s Vibration & Notification</button>
               </div>
             </div>
           </div>
@@ -227,6 +227,9 @@
             <div class="stat-pill correct"><span id="stat-correct">0</span> Correct</div>
             <div class="stat-pill wrong"><span id="stat-wrong">0</span> Incorrect</div>
             <div class="stat-pill remaining"><span id="stat-remaining">50</span> Remaining</div>
+            <button type="button" id="btn-stop-pocket-mode" class="btn-stop-pocket-pill" style="display: none;" title="Stop Pocket Mode">
+              <span class="pocket-pulse-dot"></span> Stop Pocket Mode
+            </button>
             <button type="button" id="btn-grid-toggle" class="btn-grid-pill" title="Question Jump Grid">
               Grid
             </button>
@@ -243,22 +246,23 @@
             <div class="standby-countdown" id="standby-countdown-text">05:00</div>
             <div class="standby-countdown-lbl">Next MCQ arrives in</div>
             <p class="standby-info">
-              You can minimize Chrome or put your phone in your pocket. A vibration and sound notification will alert you when your next MCQ arrives.
+              Continuous mode active. Every 5 minutes a 20s siren sound and 10s vibration will alert you with the next MCQ until you stop Pocket Mode.
             </p>
             <div class="standby-actions">
               <button type="button" class="btn-primary" id="btn-standby-answer-now">Answer Question Now</button>
+              <button type="button" class="btn-secondary" id="btn-standby-stop-pocket">Stop Pocket Study Mode</button>
             </div>
           </div>
         </div>
 
         <!-- Question Card -->
         <div class="practice-card-wrapper" id="practice-card-wrapper">
-          <!-- 8-Second Urgent Alarm Pressure Banner -->
+          <!-- 20-Second Emergency Siren & 10-Second Vibration Alert Banner -->
           <div class="alarm-pressure-banner" id="pocket-alarm-banner" style="display: none;">
             <div class="alarm-banner-header">
               <span class="alarm-pulse-ring"></span>
-              <span class="alarm-title"><strong>8-SECOND URGENT ALERT:</strong> Answer to silence alarm!</span>
-              <span class="alarm-countdown-tag" id="alarm-countdown-seconds">8s</span>
+              <span class="alarm-title"><strong>🚨 20s SIREN & 10s VIBRATION:</strong> Answer to silence!</span>
+              <span class="alarm-countdown-tag" id="alarm-countdown-seconds">20s</span>
             </div>
             <div class="alarm-timer-bar">
               <div class="alarm-timer-fill" id="alarm-timer-fill"></div>

@@ -1512,7 +1512,37 @@ html, body {
   flex-wrap: wrap;
 }
 
-/* 8-Second Urgent Alarm Pressure Banner */
+/* Stop Pocket Mode Button */
+.btn-stop-pocket-pill {
+  background-color: #18181B;
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.74rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-stop-pocket-pill:hover {
+  background-color: #27272A;
+  border-color: #FFFFFF;
+}
+
+.pocket-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 0 6px #FFFFFF;
+  animation: pulseDot 0.8s infinite alternate;
+}
+
+/* 20-Second Emergency Siren & 10-Second Vibration Alert Banner */
 .alarm-pressure-banner {
   background: #18181B;
   border: 1px solid #FFFFFF;
