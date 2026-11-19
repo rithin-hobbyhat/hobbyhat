@@ -167,7 +167,7 @@
                 <span class="switch-slider"></span>
                 <span class="label-text">
                   <strong>Enable 5-Minute Pocket Alerts</strong>
-                  <small>Wakes phone with vibration and sound notification every 5 minutes while minimized</small>
+                  <small>Urgent 8-second vibration and sound notification every 5 minutes while minimized</small>
                 </span>
               </label>
             </div>
@@ -182,7 +182,7 @@
                 </div>
               </div>
               <div style="margin-top: 10px;">
-                <button type="button" class="btn-text" id="btn-test-notification">Test Sound, Vibration & Notification</button>
+                <button type="button" class="btn-text" id="btn-test-notification">Test 8-Second Alarm, Vibration & Notification</button>
               </div>
             </div>
           </div>
@@ -253,6 +253,18 @@
 
         <!-- Question Card -->
         <div class="practice-card-wrapper" id="practice-card-wrapper">
+          <!-- 8-Second Urgent Alarm Pressure Banner -->
+          <div class="alarm-pressure-banner" id="pocket-alarm-banner" style="display: none;">
+            <div class="alarm-banner-header">
+              <span class="alarm-pulse-ring"></span>
+              <span class="alarm-title"><strong>8-SECOND URGENT ALERT:</strong> Answer to silence alarm!</span>
+              <span class="alarm-countdown-tag" id="alarm-countdown-seconds">8s</span>
+            </div>
+            <div class="alarm-timer-bar">
+              <div class="alarm-timer-fill" id="alarm-timer-fill"></div>
+            </div>
+          </div>
+
           <div class="card question-card" id="current-question-card">
             
             <!-- Metadata tags -->
