@@ -355,6 +355,12 @@
     }
   }
 
+  // Silence Siren Only (stops sound and vibration without canceling Pocket Study Mode)
+  function silenceSirenOnly() {
+    stopPocketEmergencyAlarm();
+    showToast('Siren silenced. Take your time to answer!');
+  }
+
   // Request Notification Permissions
   async function requestNotificationPermission() {
     if ('Notification' in window) {
@@ -453,6 +459,7 @@
     pocketAlarmBanner: document.getElementById('pocket-alarm-banner'),
     alarmCountdownSec: document.getElementById('alarm-countdown-seconds'),
     alarmTimerFill: document.getElementById('alarm-timer-fill'),
+    btnSilenceSiren: document.getElementById('btn-silence-siren'),
 
     // Question Card
     practiceCardWrapper: document.getElementById('practice-card-wrapper'),
@@ -871,6 +878,19 @@
       DOM.practiceCardWrapper.style.display = 'block';
       renderCurrentQuestion();
     });
+
+    // Silence Siren Button (Mutes alarm immediately without stopping Pocket Study Mode)
+    if (DOM.btnSilenceSiren) {
+      DOM.btnSilenceSiren.addEventListener('click', (e) => {
+        e.stopPropagation();
+        silenceSirenOnly();
+      });
+    }
+    if (DOM.pocketAlarmBanner) {
+      DOM.pocketAlarmBanner.addEventListener('click', () => {
+        silenceSirenOnly();
+      });
+    }
 
     // Stop Pocket Study Mode Buttons
     if (DOM.btnStopPocketMode) {

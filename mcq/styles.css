@@ -1563,10 +1563,42 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   font-size: 0.88rem;
   color: #FFFFFF;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.alarm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.btn-silence-siren {
+  background-color: #FFFFFF;
+  color: #000000;
+  border: 1px solid #FFFFFF;
+  font-weight: 800;
+  font-size: 0.78rem;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: all var(--transition-fast);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
+.btn-silence-siren:hover,
+.btn-silence-siren:active {
+  background-color: #E4E4E7;
+  transform: scale(0.97);
 }
 
 .alarm-pulse-ring {
