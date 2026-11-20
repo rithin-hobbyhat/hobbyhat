@@ -1578,6 +1578,9 @@
       text = text.replace(/\$\$([^$]+)\$\$/g, '$1').replace(/\$([^$]+)\$/g, '$1');
     }
 
+    // Unwrap any bare \text{...} outside KaTeX blocks early
+    text = text.replace(/\\text\{([^}]*)\}/g, '$1');
+
     // 2. Escape raw inequalities and HTML special characters (< and >) on plain text
     text = text.replace(/&(?!amp;|lt;|gt;|quot;|#039;)/g, '&amp;')
                .replace(/</g, '&lt;')
@@ -1642,15 +1645,15 @@
     text = text.replace(/\bdelta\b(?!\s*connec|\s*stator|\s*wind|\s*loop)/g, 'δ');
 
     // 6. Polytropic & thermodynamic equations (pv^n = constant, pv^0 = constant, etc.)
-    text = text.replace(/\bpv\^n\b/gi, 'p · vⁿ');
-    text = text.replace(/\bpvⁿ\b/gi, 'p · vⁿ');
-    text = text.replace(/\bpv\^0\b/gi, 'p · v⁰');
-    text = text.replace(/\bpv⁰\b/gi, 'p · v⁰');
-    text = text.replace(/\bpv\^1\b/gi, 'p · v¹');
-    text = text.replace(/\bpv¹\b/gi, 'p · v¹');
-    text = text.replace(/\bpv\^[γy]\b/gi, 'p · vᵞ');
-    text = text.replace(/\bpv\^gamma\b/gi, 'p · vᵞ');
-    text = text.replace(/\bpvᵞ\b/gi, 'p · vᵞ');
+    text = text.replace(/\bp\s*[\*·]?\s*v\^n\b/gi, 'p · vⁿ');
+    text = text.replace(/\bp\s*[\*·]?\s*vⁿ\b/gi, 'p · vⁿ');
+    text = text.replace(/\bp\s*[\*·]?\s*v\^0\b/gi, 'p · v⁰');
+    text = text.replace(/\bp\s*[\*·]?\s*v⁰\b/gi, 'p · v⁰');
+    text = text.replace(/\bp\s*[\*·]?\s*v\^1\b/gi, 'p · v¹');
+    text = text.replace(/\bp\s*[\*·]?\s*v¹\b/gi, 'p · v¹');
+    text = text.replace(/\bp\s*[\*·]?\s*v\^[γy]\b/gi, 'p · vᵞ');
+    text = text.replace(/\bp\s*[\*·]?\s*v\^gamma\b/gi, 'p · vᵞ');
+    text = text.replace(/\bp\s*[\*·]?\s*vᵞ\b/gi, 'p · vᵞ');
 
     // 7. Greek engineering & physics variables
     const subNumMap = {'1':'₁','2':'₂','3':'₃','4':'₄','0':'₀'};

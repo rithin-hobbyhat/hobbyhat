@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcq-practice-v19';
+const CACHE_NAME = 'mcq-practice-v21';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
