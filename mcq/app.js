@@ -1613,6 +1613,8 @@
 
     // 5. Delta variants (Engineering pressure drops, temperature, elongation, boundary layer, electrical delta)
     text = text.replace(/\bdelta_p_([a-zA-Z0-9]+)\b/g, 'Δp_$1');
+    text = text.replace(/\bdelta_([a-zA-Z0-9]+)\b/g, 'Δ$1');
+    text = text.replace(/\bdelta\s+([QWHEUSTVhpL])\b/g, 'Δ$1');
     text = text.replace(/\bdelta_p\b/gi, 'Δp');
     text = text.replace(/\bdelta_T\b/g, 'ΔT');
     text = text.replace(/\bdelta_t\b/g, 'Δt');
@@ -1626,6 +1628,7 @@
     text = text.replace(/\bDelta-ferrite\b/g, 'δ-ferrite');
     text = text.replace(/\bAlpha-ferrite\b/g, 'α-ferrite');
     text = text.replace(/\bGamma-iron\b/g, 'γ-iron');
+    text = text.replace(/\bGamma-austenite\b/g, 'γ-austenite');
 
     // Electrical Delta connections
     text = text.replace(/\bDelta\s*\(Delta\)/g, 'Δ (Delta)');
@@ -1650,45 +1653,109 @@
     text = text.replace(/\bpvᵞ\b/gi, 'p · vᵞ');
 
     // 7. Greek engineering & physics variables
+    const subNumMap = {'1':'₁','2':'₂','3':'₃','4':'₄','0':'₀'};
+    
+    // Sigma (normal stress, Stefan-Boltzmann constant, standard deviation)
     text = text.replace(/\bsigma_([a-zA-Z0-9]+)\b/g, 'σ_$1');
-    text = text.replace(/\bsigma\b/g, 'σ');
-    text = text.replace(/\brho_([a-zA-Z0-9]+)\b/g, 'ρ_$1');
-    text = text.replace(/\brho\b/g, 'ρ');
-    text = text.replace(/\btheta\b/g, 'θ');
+    text = text.replace(/\bsigma([1-4])\b/g, (m, d) => 'σ' + (subNumMap[d] || d));
+    text = text.replace(/\bsigma\b(?!\s*engine|\s*company)/g, 'σ');
+
+    // Tau (shear stress, time constant)
     text = text.replace(/\btau_([a-zA-Z0-9]+)\b/g, 'τ_$1');
+    text = text.replace(/\btau([1-4])\b/g, (m, d) => 'τ' + (subNumMap[d] || d));
     text = text.replace(/\btau\b/g, 'τ');
+
+    // Theta (angles, temperatures, steering angles)
+    text = text.replace(/\btheta_([a-zA-Z0-9]+)\b/g, 'θ_$1');
+    text = text.replace(/\btheta([1-4])\b/g, (m, d) => 'θ' + (subNumMap[d] || d));
+    text = text.replace(/\btheta\b/g, 'θ');
+
+    // Epsilon (strain, emissivity)
+    text = text.replace(/\bepsilon_([a-zA-Z0-9]+)\b/g, 'ε_$1');
+    text = text.replace(/\bepsilon([1-4])\b/g, (m, d) => 'ε' + (subNumMap[d] || d));
+    text = text.replace(/\bepsilon\b/g, 'ε');
+
+    // Eta (efficiency, thermal/mechanical/volumetric efficiency)
+    text = text.replace(/\beta_([a-zA-Z0-9]+)\b/g, 'η_$1');
+    text = text.replace(/\beta([1-4])\b/g, (m, d) => 'η' + (subNumMap[d] || d));
+    text = text.replace(/\beta\b(?!\s*carr|\s*hour)/g, 'η');
+
+    // Rho (density, cut-off ratio)
+    text = text.replace(/\brho_([a-zA-Z0-9]+)\b/g, 'ρ_$1');
+    text = text.replace(/\brho([1-4])\b/g, (m, d) => 'ρ' + (subNumMap[d] || d));
+    text = text.replace(/\brho\b/g, 'ρ');
+
+    // Zeta (vorticity, damping ratio)
+    text = text.replace(/\bzeta\b/g, 'ζ');
+
+    // Omega (angular velocity, rotational frequency)
     text = text.replace(/\bomega_([a-zA-Z0-9]+)\b/g, 'ω_$1');
+    text = text.replace(/\bomega([1-4])\b/g, (m, d) => 'ω' + (subNumMap[d] || d));
+    text = text.replace(/\bomega²\b/g, 'ω²');
     text = text.replace(/\bomega\b/g, 'ω');
+
+    // Gamma (adiabatic index, specific heat ratio, shear strain)
     text = text.replace(/\bgamma_([a-zA-Z0-9]+)\b/g, 'γ_$1');
+    text = text.replace(/\bgamma([1-4])\b/g, (m, d) => 'γ' + (subNumMap[d] || d));
     text = text.replace(/\bgamma\b/g, 'γ');
+    text = text.replace(/\bGamma\b(?!\s*Ray|\s*ray)/g, 'γ');
+
+    // Lambda (air-fuel equivalence ratio, slenderness ratio, wavelength)
     text = text.replace(/\blambda_([a-zA-Z0-9]+)\b/g, 'λ_$1');
+    text = text.replace(/\bLambda\s*=\s*([0-9\.]+)\b/g, 'λ = $1');
+    text = text.replace(/\(Lambda\s*\/\s*O2\)/g, '(λ / O₂)');
+    text = text.replace(/\(Lambda\s+or\s+O2\)/g, '(λ or O₂)');
+    text = text.replace(/\bLambda\s+Window\b/g, 'λ-Window');
+    text = text.replace(/(?:λ-sensor\s*\()?λ-sensor\s*\((?:Lambda|Lamda)\s+sensor\)\)?/g, 'λ-sensor');
+    text = text.replace(/\b(?:Lambda|Lamda)\s+sensor\b/gi, 'λ-sensor');
     text = text.replace(/\blambda\b/g, 'λ');
+
+    // Alpha & Beta (angles, slip angles, expansion coefficients)
+    text = text.replace(/\balpha_([a-zA-Z0-9]+)\b/g, 'α_$1');
+    text = text.replace(/\balpha([1-4])\b/g, (m, d) => 'α' + (subNumMap[d] || d));
+    text = text.replace(/\balpha\b(?!\s*ferrite|\s*particle|\s*ray)/g, 'α');
+    text = text.replace(/\bbeta_([a-zA-Z0-9]+)\b/g, 'β_$1');
+    text = text.replace(/\bbeta([1-4])\b/g, (m, d) => 'β' + (subNumMap[d] || d));
+    text = text.replace(/\bbeta\b(?!\s*particle|\s*ray|\s*brass)/g, 'β');
+
+    // Phi
     text = text.replace(/\bphi\b/g, 'ϕ');
 
+    // Mu & Nu (viscosity, friction coefficient, Poisson's ratio)
     text = text.replace(/\bmu_([a-zA-Z0-9]+)\b/g, 'µ_$1');
     text = text.replace(/(?<=[0-9\s*+\-\/(\[=])mu(?=[0-9\s*+\-\/)\]\,]|$)/g, 'µ');
     text = text.replace(/\bmu\b/g, 'µ');
-
-    text = text.replace(/(?<=[0-9\s*+\-\/(\[=])pi(?=[0-9\s*+\-\/)\]\,]|$)/g, 'π');
-    text = text.replace(/\bpi\b(?!\s*pipe|\s*pin|\s*pilot|\s*piston|\s*pitot)/g, 'π');
-
     text = text.replace(/(?<=[0-9\s*+\-\/(\[=])nu(?=[0-9\s*+\-\/)\]\,]|$)/g, 'ν');
     text = text.replace(/\bnu\b(?!\s*Unit|\s*number)/g, 'ν');
 
-    text = text.replace(/\bepsilon_([a-zA-Z0-9]+)\b/g, 'ε_$1');
-    text = text.replace(/\bepsilon\b/g, 'ε');
-
-    text = text.replace(/\beta_([a-zA-Z0-9]+)\b/g, 'η_$1');
-    text = text.replace(/\beta\b(?!\s*carr|\s*hour)/g, 'η');
-
-    text = text.replace(/\balpha([0-9]*)\b/g, 'α$1');
-    text = text.replace(/\balpha_([a-zA-Z0-9]+)\b/g, 'α_$1');
-
-    text = text.replace(/\bbeta([0-9]*)\b/g, 'β$1');
-
+    // Psi (Stream function in fluid mechanics vs tire pressure psi)
+    text = text.replace(/\bstream function \(psi\)/gi, 'stream function (ψ)');
+    text = text.replace(/\bstream function\s*\(?psi\)?/gi, 'stream function ψ');
+    text = text.replace(/d\(psi\)\s*\/\s*d([txytz])/g, 'd(ψ)/d$1');
     text = text.replace(/\bpsi(?=\s*[*\/=])/g, 'ψ');
     text = text.replace(/=\s*psi\b/g, '= ψ');
     text = text.replace(/\(psi\)/g, '(ψ)');
+
+    // Pi in equations
+    text = text.replace(/\bPi\s*\*\s*([a-zA-Z0-9])/g, 'π · $1');
+    text = text.replace(/2\s*\*\s*Pi\s*\*\s*N/gi, '2 · π · N');
+    text = text.replace(/\bPi\s*\/\s*4/g, 'π / 4');
+    text = text.replace(/(?<=[0-9\s*+\-\/(\[=])pi(?=[0-9\s*+\-\/)\]\,]|$)/g, 'π');
+    text = text.replace(/\bpi\b(?!\s*pipe|\s*pin|\s*pilot|\s*piston|\s*pitot)/g, 'π');
+
+    // Greek Subscripts: σ_x -> σₓ, σ_y -> σᵧ, τ_xy -> τₓᵧ, θ_o -> θₒ, θ_i -> θᵢ
+    text = text.replace(/([στθερωνλαβΔ])_([xy])\b/g, (m, g, v) => g + (v === 'x' ? 'ₓ' : 'ᵧ'));
+    text = text.replace(/([στθερωνλαβΔ])_max\b/g, '$1ₘₐₓ');
+    text = text.replace(/([στθερωνλαβΔ])_min\b/g, '$1ₘᵢₙ');
+    text = text.replace(/([στθερωνλαβΔ])_avg\b/g, '$1ₐᵥ');
+    text = text.replace(/([στθερωνλαβΔ])_th\b/g, '$1ₜₕ');
+    text = text.replace(/([στθερωνλαβΔ])_xy\b/g, '$1ₓᵧ');
+    text = text.replace(/([στθερωνλαβΔ])_yx\b/g, '$1ᵧₓ');
+    text = text.replace(/([στθερωνλαβΔ])_o\b/g, '$1ₒ');
+    text = text.replace(/([στθερωνλαβΔ])_i\b/g, '$1ᵢ');
+    text = text.replace(/([στθερωνλαβΔ])_outer\b/g, '$1<sub>outer</sub>');
+    text = text.replace(/([στθερωνλαβΔ])_inner\b/g, '$1<sub>inner</sub>');
+    text = text.replace(/([στθερωνλαβΔ])_theta\b/g, '$1<sub>θ</sub>');
 
     // 8. Standard Engineering variables & subscripts (Hf, Qth, Qact, Cd, Cc, Cv, Cp, etc.)
     const engVars = [
