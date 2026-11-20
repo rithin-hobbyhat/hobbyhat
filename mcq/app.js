@@ -1522,39 +1522,61 @@
     if (!rawText) return '';
     let text = String(rawText);
 
-    // If KaTeX is loaded and text contains LaTeX math notation, render math expressions
+    // 1. Extract and render KaTeX math expressions if KaTeX is loaded
+    const katexTokens = [];
     if (window.katex) {
-      // 1. Double dollar display math: $$ ... $$
+      // Double dollar display math: $$ ... $$
       text = text.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
         try {
-          return window.katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+          const rendered = window.katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+          const token = `@@@KATEX_${katexTokens.length}@@@`;
+          katexTokens.push(rendered);
+          return token;
         } catch (e) { return match; }
       });
 
-      // 2. Inline math: $ ... $
+      // Inline math: $ ... $
       text = text.replace(/\$([^$]+)\$/g, (match, math) => {
         try {
-          return window.katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+          const rendered = window.katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+          const token = `@@@KATEX_${katexTokens.length}@@@`;
+          katexTokens.push(rendered);
+          return token;
         } catch (e) { return match; }
       });
 
-      // 3. Bare \frac{...}{...} or \sqrt{...}
+      // Bare \frac{...}{...} or \sqrt{...}
       if (text.includes('\\frac') || text.includes('\\sqrt')) {
         text = text.replace(/\\(frac\{[^{}]*\}\{[^{}]*\}|sqrt\{[^{}]*\})/g, (math) => {
           try {
-            return window.katex.renderToString(math, { displayMode: false, throwOnError: false });
+            const rendered = window.katex.renderToString(math, { displayMode: false, throwOnError: false });
+            const token = `@@@KATEX_${katexTokens.length}@@@`;
+            katexTokens.push(rendered);
+            return token;
           } catch (e) { return math; }
         });
       }
+    } else {
+      // If KaTeX is not loaded, strip $ delimiters so raw dollars don't show
+      text = text.replace(/\$\$([^$]+)\$\$/g, '$1').replace(/\$([^$]+)\$/g, '$1');
     }
 
-    // Standard scientific & mathematical symbol replacements
-    // 1. Degree & temperature
+    // 2. Escape raw inequality and HTML characters (< and >) outside of valid tags
+    text = text.replace(/<(?!\/?(sub|sup|em|strong|span)\b)/gi, '&lt;');
+    text = text.replace(/(?<!\/(sub|sup|em|strong|span))>(?![^<]*>)/gi, (m, offset, str) => {
+      const prefix = str.slice(0, offset);
+      if (/<(sub|sup|em|strong|span)[^>]*$/i.test(prefix) || /<\/(sub|sup|em|strong|span)$/i.test(prefix)) {
+        return '>';
+      }
+      return '&gt;';
+    });
+
+    // 3. Degree & temperature
     text = text.replace(/\^?\\circ\\text\{C\}|\^?\\circ\s*C|\\circ\s*C/g, '°C');
     text = text.replace(/\^?\\circ\\text\{F\}|\^?\\circ\s*F|\\circ\s*F/g, '°F');
     text = text.replace(/\^?\\circ|\\circ|\\degree/g, '°');
 
-    // 2. Standard symbols
+    // 4. Standard symbols
     const symMap = [
       [/\\times(?![a-zA-Z])/g, '×'],
       [/\\pm(?![a-zA-Z])/g, '±'],
@@ -1577,7 +1599,7 @@
     ];
     symMap.forEach(([reg, rep]) => { text = text.replace(reg, rep); });
 
-    // 3. Delta variants (Engineering pressure drops, temperature, elongation, boundary layer, electrical delta)
+    // 5. Delta variants (Engineering pressure drops, temperature, elongation, boundary layer, electrical delta)
     text = text.replace(/\bdelta_p_([a-zA-Z0-9]+)\b/g, 'Δp_$1');
     text = text.replace(/\bdelta_p\b/gi, 'Δp');
     text = text.replace(/\bdelta_T\b/g, 'ΔT');
@@ -1604,7 +1626,18 @@
     text = text.replace(/\bdelta\*/g, 'δ*');
     text = text.replace(/\bdelta\b(?!\s*connec|\s*stator|\s*wind|\s*loop)/g, 'δ');
 
-    // 4. Greek engineering & physics variables
+    // 6. Polytropic & thermodynamic equations (pv^n = constant, pv^0 = constant, etc.)
+    text = text.replace(/\bpv\^n\b/gi, 'p · vⁿ');
+    text = text.replace(/\bpvⁿ\b/gi, 'p · vⁿ');
+    text = text.replace(/\bpv\^0\b/gi, 'p · v⁰');
+    text = text.replace(/\bpv⁰\b/gi, 'p · v⁰');
+    text = text.replace(/\bpv\^1\b/gi, 'p · v¹');
+    text = text.replace(/\bpv¹\b/gi, 'p · v¹');
+    text = text.replace(/\bpv\^[γy]\b/gi, 'p · vᵞ');
+    text = text.replace(/\bpv\^gamma\b/gi, 'p · vᵞ');
+    text = text.replace(/\bpvᵞ\b/gi, 'p · vᵞ');
+
+    // 7. Greek engineering & physics variables
     text = text.replace(/\bsigma_([a-zA-Z0-9]+)\b/g, 'σ_$1');
     text = text.replace(/\bsigma\b/g, 'σ');
     text = text.replace(/\brho_([a-zA-Z0-9]+)\b/g, 'ρ_$1');
@@ -1645,18 +1678,53 @@
     text = text.replace(/=\s*psi\b/g, '= ψ');
     text = text.replace(/\(psi\)/g, '(ψ)');
 
-    // 5. Square root: sqrt(...) -> √( ... )
+    // 8. Standard Engineering variables & subscripts (Hf, Qth, Qact, Cd, Cc, Cv, Cp, etc.)
+    const engVars = [
+      [/\b(h_f|Hf|hf)\b/g, 'h<sub>f</sub>'],
+      [/\b(h_s|hs|Hs)\b(?!\s*head|\s*and|\s*to)/g, 'h<sub>s</sub>'],
+      [/\b(h_d|hd|Hd)\b(?!\s*head|\s*and|\s*to)/g, 'h<sub>d</sub>'],
+      [/\bhfs\b/g, 'h<sub>fs</sub>'],
+      [/\bhfd\b/g, 'h<sub>fd</sub>'],
+      [/\b(H_m|Hm)\b/g, 'H<sub>m</sub>'],
+      [/\b(Q_th|Qth)\b/g, 'Q<sub>th</sub>'],
+      [/\b(Q_act|Qact)\b/g, 'Q<sub>act</sub>'],
+      [/\b(C_d|Cd)\b/g, 'C<sub>d</sub>'],
+      [/\b(C_c|Cc)\b/g, 'C<sub>c</sub>'],
+      [/\b(C_v|Cv)\b/g, 'C<sub>v</sub>'],
+      [/\b(C_p|Cp)\b/g, 'C<sub>p</sub>'],
+      [/\b(V_s|Vs)\b(?!\s*versus)/g, 'V<sub>s</sub>'],
+      [/\b(V_c|Vc)\b/g, 'V<sub>c</sub>'],
+      [/\b(V_d|Vd)\b/g, 'V<sub>d</sub>'],
+      [/\b(v_d²|vd²|v_d\^2|vd\^2)\b/g, 'v<sub>d</sub>²'],
+      [/\b(v_s²|vs²|v_s\^2|vs\^2)\b/g, 'v<sub>s</sub>²'],
+      [/\bA_act\b/g, 'A<sub>act</sub>'],
+      [/\bA_th\b/g, 'A<sub>th</sub>'],
+      [/\bV_act\b/g, 'V<sub>act</sub>'],
+      [/\bV_th\b/g, 'V<sub>th</sub>'],
+      [/\bV_L\b/g, 'V<sub>L</sub>'],
+      [/\bI_L\b/g, 'I<sub>L</sub>'],
+      [/\bV_ph\b/g, 'V<sub>ph</sub>'],
+      [/\bI_ph\b/g, 'I<sub>ph</sub>'],
+      [/\b(W_ps|Wps)\b/g, 'W<sub>ps</sub>'],
+      [/\b(W_m|Wm)\b/g, 'W<sub>m</sub>'],
+      [/\b(L_e|Le)\b(?=\s*=|\s*of|\s*\/)/g, 'L<sub>e</sub>']
+    ];
+    engVars.forEach(([reg, rep]) => { text = text.replace(reg, rep); });
+
+    // 9. Powers on subscripted variables: H<sub>m</sub>^(3/4) -> H<sub>m</sub><sup>3/4</sup>
+    text = text.replace(/<sub>([a-zA-Z0-9]+)<\/sub>\^\(?([0-9\/]+)\)?/g, '<sub>$1</sub><sup>$2</sup>');
+    text = text.replace(/\^(\d+\/\d+)/g, '<sup>$1</sup>');
+
+    // 10. Square root: sqrt(...) -> √( ... )
     text = text.replace(/\bsqrt\(([^()]+)\)/g, '√($1)');
     text = text.replace(/\bsqrt\(([^)]+)\)/g, '√($1)');
 
-    // 6. Integrals
+    // 11. Integrals & Approximations
     text = text.replace(/integral from 0 to ([a-zA-ZδΔ]+) of/g, '∫₀^$1');
     text = text.replace(/integral from ([a-zA-Z0-9]+) to ([a-zA-Z0-9]+) of/g, '∫_{$1}^{$2}');
-
-    // 7. Approximations
     text = text.replace(/\bapprox\.?\b/g, '≈');
 
-    // 8. Chemical formulas with common LaTeX wrappers
+    // 12. Chemical formulas with common LaTeX wrappers
     text = text.replace(/\\text\{PbO\}_2/g, 'PbO₂');
     text = text.replace(/\\text\{H\}_2\\text\{SO\}_4/g, 'H₂SO₄');
     text = text.replace(/\\text\{PbSO\}_4/g, 'PbSO₄');
@@ -1665,31 +1733,39 @@
     text = text.replace(/\\text\{NO\}_\\text\{x\}/g, 'NOₓ');
     text = text.replace(/\\text\{NO\}_x/g, 'NOₓ');
 
-    // 9. Unwrap \text{...}
+    // 13. Unwrap any bare \text{...}
     text = text.replace(/\\text\{([^}]*)\}/g, '$1');
 
-    // 10. Clean up escaped symbols and extra backslashes
+    // 14. Clean up escaped symbols and extra backslashes
     text = text.replace(/\\_/g, '_').replace(/\\ /g, ' ').replace(/\\%/g, '%');
 
-    // 11. Engineering sub-indices: L1 -> L₁, A1 -> A₁, etc.
+    // 15. Engineering sub-indices: L1 -> L₁, A1 -> A₁, etc.
     const subNum = {'1':'₁','2':'₂','3':'₃','4':'₄'};
     text = text.replace(/\b([yLAdEPVTrFrασ])[1-4]\b/g, (m, l) => l + (subNum[m.slice(-1)] || m.slice(-1)));
     text = text.replace(/_max/g, 'ₘₐₓ').replace(/_min/g, 'ₘᵢₙ').replace(/_ph/g, 'ₚₕ');
 
-    // 12. General subscripts
+    // 16. General subscripts
     const subMap = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','x':'ₓ','n':'ₙ','m':'ₘ','v':'ᵥ','p':'ₚ','t':'ₜ'};
     text = text.replace(/_([0-9xnmvpt])\b/g, (m, c) => subMap[c] || m);
     text = text.replace(/_\{([0-9xnmvpt]+)\}/g, (m, cs) => cs.split('').map(c => subMap[c] || c).join(''));
 
-    // 13. Superscripts
+    // 17. Superscripts
     const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','x':'ˣ','st':'ˢᵗ','nd':'ⁿᵈ','rd':'ʳᵈ','th':'ᵗʰ'};
     text = text.replace(/\^([0-9nx])\b/g, (m, c) => supMap[c] || m);
     text = text.replace(/\^\\text\{([a-z]+)\}/g, (m, cs) => supMap[cs] || cs);
     text = text.replace(/\^\{([0-9]+)\}/g, (m, cs) => cs.split('').map(c => supMap[c] || c).join(''));
 
-    // 14. Multiplication in equations: 2 * pi -> 2 · π
+    // 18. Multiplication in equations: 2 * pi -> 2 · π
     text = text.replace(/(\b[a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ]+)\s*\*\s*([a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ√])/g, '$1 · $2');
     text = text.replace(/(\))\s*\*\s*(\()/g, '$1 · $2');
+
+    // 19. Restore KaTeX blocks
+    katexTokens.forEach((rendered, idx) => {
+      text = text.replace(`@@@KATEX_${idx}@@@`, rendered);
+    });
+
+    return text;
+  }
 
     return text;
   }
@@ -1752,7 +1828,7 @@
     DOM.qSubjectTag.textContent = `${q.subject_code ? '[' + q.subject_code + '] ' : ''}${q.subject}`;
     DOM.qIdTag.textContent = q.id || `Q${state.currentIndex + 1}`;
     DOM.qDiffTag.textContent = q.difficulty || 'Medium';
-    DOM.qText.innerHTML = formatScientificMath(escapeHtml(q.question));
+    DOM.qText.innerHTML = formatScientificMath(q.question);
 
     // Options rendering
     DOM.optionsContainer.innerHTML = '';
@@ -1772,10 +1848,11 @@
       btn.type = 'button';
       btn.className = 'option-btn';
       btn.dataset.letter = letter;
+      btn.title = 'Tap to select • Long-press to search Google and study';
 
       btn.innerHTML = `
         <span class="opt-badge">${letter}</span>
-        <span class="opt-text">${formatScientificMath(escapeHtml(optText))}</span>
+        <span class="opt-text">${formatScientificMath(optText)}</span>
         <span class="opt-status-icon"></span>
       `;
 
@@ -1784,19 +1861,92 @@
           if (answerRecord.isCorrect) {
             btn.classList.add('selected-correct');
             btn.querySelector('.opt-status-icon').textContent = 'Correct';
-            btn.title = 'Double-click to view answer description';
+            btn.title = 'Double-click to view answer description • Long-press to search Google';
           } else {
             btn.classList.add('selected-wrong');
             btn.querySelector('.opt-status-icon').textContent = 'Incorrect';
+            btn.title = 'Double-click to view answer description • Long-press to search Google';
           }
         } else if (!answerRecord.isCorrect && letter === correctLetter) {
           btn.classList.add('reveal-correct');
           btn.querySelector('.opt-status-icon').textContent = 'Correct';
-          btn.title = 'Double-click to view answer description';
+          btn.title = 'Double-click to view answer description • Long-press to search Google';
         }
       }
 
-      btn.addEventListener('click', () => handleOptionClick(letter, btn));
+      // Long-press handling to search Google for this option without selecting it
+      let pressTimer = null;
+      let didLongPress = false;
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      const triggerLongPressSearch = () => {
+        didLongPress = true;
+        if (navigator.vibrate) {
+          try { navigator.vibrate(40); } catch (e) {}
+        }
+        const cleanOpt = optText.replace(/<[^>]+>/g, '').replace(/[$_^{}]/g, '').trim();
+        const cleanQ = (q.question || '').replace(/<[^>]+>/g, '').replace(/[$_^{}]/g, '').trim().slice(0, 70);
+        const subj = (q.subject || state.activeSubjectName || '').trim();
+        const searchQuery = `${cleanOpt} ${cleanQ} ${subj}`.trim();
+        showToast(`🔍 Searching Google: "${cleanOpt.slice(0, 32)}..."`);
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank', 'noopener,noreferrer');
+      };
+
+      const startPress = (e) => {
+        didLongPress = false;
+        if (e.type === 'touchstart' && e.touches && e.touches[0]) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        }
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(triggerLongPressSearch, 500);
+      };
+
+      const cancelPress = () => {
+        clearTimeout(pressTimer);
+      };
+
+      const movePress = (e) => {
+        if (e.type === 'touchmove' && e.touches && e.touches[0]) {
+          const dx = Math.abs(e.touches[0].clientX - touchStartX);
+          const dy = Math.abs(e.touches[0].clientY - touchStartY);
+          if (dx > 10 || dy > 10) {
+            clearTimeout(pressTimer);
+          }
+        }
+      };
+
+      btn.addEventListener('touchstart', startPress, { passive: true });
+      btn.addEventListener('touchmove', movePress, { passive: true });
+      btn.addEventListener('touchend', () => {
+        clearTimeout(pressTimer);
+        if (didLongPress) {
+          setTimeout(() => { didLongPress = false; }, 250);
+        }
+      });
+      btn.addEventListener('touchcancel', cancelPress);
+
+      btn.addEventListener('mousedown', (e) => {
+        if (e.button === 0) startPress(e);
+      });
+      btn.addEventListener('mouseup', cancelPress);
+      btn.addEventListener('mouseleave', cancelPress);
+      btn.addEventListener('contextmenu', (e) => {
+        if (didLongPress) {
+          e.preventDefault();
+        }
+      });
+
+      btn.addEventListener('click', (e) => {
+        if (didLongPress) {
+          e.preventDefault();
+          e.stopPropagation();
+          didLongPress = false;
+          return;
+        }
+        handleOptionClick(letter, btn);
+      });
       btn.addEventListener('dblclick', () => handleOptionDblClick(letter));
 
       DOM.optionsContainer.appendChild(btn);
@@ -1940,10 +2090,10 @@
 
     DOM.expCorrectBanner.innerHTML = `
       <strong>Correct Answer: Option ${correctLetter}</strong>
-      ${correctText ? `— <em>${formatScientificMath(escapeHtml(correctText))}</em>` : ''}
+      ${correctText ? `— <em>${formatScientificMath(correctText)}</em>` : ''}
     `;
 
-    DOM.expText.innerHTML = formatScientificMath(escapeHtml(q.explanation || 'No detailed explanation provided for this question.')).replace(/\n/g, '<br>');
+    DOM.expText.innerHTML = formatScientificMath(q.explanation || 'No detailed explanation provided for this question.').replace(/\n/g, '<br>');
     DOM.explanationBox.style.display = 'block';
 
     if (state.autoScrollExp) {
@@ -2125,28 +2275,28 @@
           ${statusHtml}
         </div>
 
-        <div class="rev-q-text">${formatScientificMath(escapeHtml(q.question))}</div>
+        <div class="rev-q-text">${formatScientificMath(q.question)}</div>
 
         <div class="rev-answers-summary">
           ${isWrong ? `
             <div class="rev-ans-row user-wrong">
               <span>Your Answer:</span>
-              <strong>Option ${userSelected}: ${formatScientificMath(escapeHtml(userSelectedText))}</strong>
+              <strong>Option ${userSelected}: ${formatScientificMath(userSelectedText)}</strong>
             </div>
             <div class="rev-ans-row correct-ans">
               <span>Correct Answer:</span>
-              <strong>Option ${correctLetter}: ${formatScientificMath(escapeHtml(correctText))}</strong>
+              <strong>Option ${correctLetter}: ${formatScientificMath(correctText)}</strong>
             </div>
           ` : `
             <div class="rev-ans-row user-correct">
               <span>Answered:</span>
-              <strong>Option ${userSelected}: ${formatScientificMath(escapeHtml(userSelectedText))} (Correct)</strong>
+              <strong>Option ${userSelected}: ${formatScientificMath(userSelectedText)} (Correct)</strong>
             </div>
           `}
         </div>
 
         <div class="rev-exp-box">
-          <strong style="color: #ffffff;">Explanation / Description:</strong> ${formatScientificMath(escapeHtml(q.explanation || 'No explanation available.')).replace(/\n/g, '<br>')}
+          <strong style="color: #ffffff;">Explanation / Description:</strong> ${formatScientificMath(q.explanation || 'No explanation available.') .replace(/\n/g, '<br>')}
         </div>
       `;
 
