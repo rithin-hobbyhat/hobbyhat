@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcq-practice-v13';
+const CACHE_NAME = 'mcq-practice-v14';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,6 +8,8 @@ const ASSETS_TO_CACHE = [
   './icon.png',
   './industrial_siren.wav',
   './silence.wav',
+  './lib/katex/katex.min.css',
+  './lib/katex/katex.min.js',
   './data/subjects.json'
 ];
 

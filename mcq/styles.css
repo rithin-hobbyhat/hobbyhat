@@ -1792,3 +1792,27 @@ html, body {
   width: 100%;
   transition: width 0.1s linear;
 }
+
+/* KaTeX and Mathematical / Scientific Formulas Styling */
+.katex {
+  font-size: 1.05em;
+  color: inherit;
+  white-space: normal;
+  max-width: 100%;
+}
+
+.katex-display {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+
+.opt-text .katex {
+  font-size: 1.0em;
+}
+
+.rev-q-text .katex,
+.rev-exp-box .katex {
+  font-size: 1.02em;
+}

@@ -1517,12 +1517,144 @@
     return arr;
   }
 
+  // Standard Math & Scientific Symbols Renderer (supports KaTeX and standard Unicode formatting)
+  function formatScientificMath(rawText) {
+    if (!rawText) return '';
+    let text = String(rawText);
+
+    // If KaTeX is loaded and text contains LaTeX math notation, render math expressions
+    if (window.katex) {
+      // 1. Double dollar display math: $$ ... $$
+      text = text.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
+        try {
+          return window.katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+        } catch (e) { return match; }
+      });
+
+      // 2. Inline math: $ ... $
+      text = text.replace(/\$([^$]+)\$/g, (match, math) => {
+        try {
+          return window.katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+        } catch (e) { return match; }
+      });
+
+      // 3. Bare \frac{...}{...} or \sqrt{...}
+      if (text.includes('\\frac') || text.includes('\\sqrt')) {
+        text = text.replace(/\\(frac\{[^{}]*\}\{[^{}]*\}|sqrt\{[^{}]*\})/g, (math) => {
+          try {
+            return window.katex.renderToString(math, { displayMode: false, throwOnError: false });
+          } catch (e) { return math; }
+        });
+      }
+    }
+
+    // Standard scientific & mathematical symbol replacements
+    // 1. Degree & temperature
+    text = text.replace(/\^?\\circ\\text\{C\}|\^?\\circ\s*C|\\circ\s*C/g, '°C');
+    text = text.replace(/\^?\\circ\\text\{F\}|\^?\\circ\s*F|\\circ\s*F/g, '°F');
+    text = text.replace(/\^?\\circ|\\circ|\\degree/g, '°');
+
+    // 2. Standard symbols
+    const symMap = [
+      [/\\times(?![a-zA-Z])/g, '×'],
+      [/\\pm(?![a-zA-Z])/g, '±'],
+      [/\\mu(?![a-zA-Z])/g, 'µ'],
+      [/\\Omega(?![a-zA-Z])/g, 'Ω'],
+      [/\\approx(?![a-zA-Z])/g, '≈'],
+      [/\\leq(?![a-zA-Z])/g, '≤'],
+      [/\\le(?![a-zA-Z])/g, '≤'],
+      [/\\geq(?![a-zA-Z])/g, '≥'],
+      [/\\ge(?![a-zA-Z])/g, '≥'],
+      [/\\neq(?![a-zA-Z])/g, '≠'],
+      [/\\ne(?![a-zA-Z])/g, '≠'],
+      [/\\Delta(?![a-zA-Z])/g, 'Δ'],
+      [/\\alpha(?![a-zA-Z])/g, 'α'],
+      [/\\beta(?![a-zA-Z])/g, 'β'],
+      [/\\gamma(?![a-zA-Z])/g, 'γ'],
+      [/\\theta(?![a-zA-Z])/g, 'θ'],
+      [/\\pi(?![a-zA-Z])/g, 'π'],
+      [/\\sim(?![a-zA-Z])/g, '~']
+    ];
+    symMap.forEach(([reg, rep]) => { text = text.replace(reg, rep); });
+
+    // 3. Subscripts
+    const subMap = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','x':'ₓ','n':'ₙ','m':'ₘ'};
+    text = text.replace(/_([0-9xnm])\b/g, (m, c) => subMap[c] || m);
+    text = text.replace(/_\{([0-9xnm]+)\}/g, (m, cs) => cs.split('').map(c => subMap[c] || c).join(''));
+
+    // 4. Superscripts
+    const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','x':'ˣ','st':'ˢᵗ','nd':'ⁿᵈ','rd':'ʳᵈ','th':'ᵗʰ'};
+    text = text.replace(/\^([0-9nx])\b/g, (m, c) => supMap[c] || m);
+    text = text.replace(/\^\\text\{([a-z]+)\}/g, (m, cs) => supMap[cs] || cs);
+    text = text.replace(/\^\{([0-9]+)\}/g, (m, cs) => cs.split('').map(c => supMap[c] || c).join(''));
+
+    // 5. Chemical formulas with common LaTeX wrappers
+    text = text.replace(/\\text\{PbO\}_2/g, 'PbO₂');
+    text = text.replace(/\\text\{H\}_2\\text\{SO\}_4/g, 'H₂SO₄');
+    text = text.replace(/\\text\{PbSO\}_4/g, 'PbSO₄');
+    text = text.replace(/\\text\{CO\}_2/g, 'CO₂');
+    text = text.replace(/\\text\{O\}_2/g, 'O₂');
+    text = text.replace(/\\text\{NO\}_\\text\{x\}/g, 'NOₓ');
+    text = text.replace(/\\text\{NO\}_x/g, 'NOₓ');
+
+    // 6. Unwrap \text{...}
+    text = text.replace(/\\text\{([^}]*)\}/g, '$1');
+
+    // 7. Clean up escaped symbols and extra backslashes
+    text = text.replace(/\\_/g, '_').replace(/\\ /g, ' ').replace(/\\%/g, '%');
+
+    return text;
+  }
+
+  // Scramble options A, B, C, D into a different random order each time question is presented
+  function scrambleQuestionOptions(q) {
+    if (!q || !q.options) return;
+
+    // Cache original pristine options and answer on first encounter
+    if (!q._origOptions) {
+      q._origOptions = { ...q.options };
+      q._origAnswer = (q.answer || 'A').trim().toUpperCase();
+    }
+
+    const letters = ['A', 'B', 'C', 'D'];
+    const activeLetters = letters.filter(l => q._origOptions[l] !== undefined && q._origOptions[l] !== '');
+    if (activeLetters.length <= 1) return;
+
+    // Map each original option and whether it was the correct answer
+    const items = activeLetters.map(l => ({
+      text: q._origOptions[l],
+      isCorrect: l === q._origAnswer
+    }));
+
+    // Randomize option order
+    shuffleArray(items);
+
+    // Reassign shuffled options to A, B, C, D and track new correct answer letter
+    const newOptions = {};
+    let newCorrectLetter = 'A';
+
+    activeLetters.forEach((l, idx) => {
+      newOptions[l] = items[idx].text;
+      if (items[idx].isCorrect) {
+        newCorrectLetter = l;
+      }
+    });
+
+    q.options = newOptions;
+    q.answer = newCorrectLetter;
+  }
+
   // =========================================================================
   // PRACTICE VIEW RENDERING & INTERACTION
   // =========================================================================
   function renderCurrentQuestion() {
     const q = state.activePool[state.currentIndex];
     if (!q) return;
+
+    // Scramble options into a fresh random order if question has not been answered yet in this session
+    if (!state.userAnswers[state.currentIndex]) {
+      scrambleQuestionOptions(q);
+    }
 
     // Reset Explanation box
     DOM.explanationBox.style.display = 'none';
@@ -1532,7 +1664,7 @@
     DOM.qSubjectTag.textContent = `${q.subject_code ? '[' + q.subject_code + '] ' : ''}${q.subject}`;
     DOM.qIdTag.textContent = q.id || `Q${state.currentIndex + 1}`;
     DOM.qDiffTag.textContent = q.difficulty || 'Medium';
-    DOM.qText.textContent = q.question;
+    DOM.qText.innerHTML = formatScientificMath(escapeHtml(q.question));
 
     // Options rendering
     DOM.optionsContainer.innerHTML = '';
@@ -1555,7 +1687,7 @@
 
       btn.innerHTML = `
         <span class="opt-badge">${letter}</span>
-        <span class="opt-text">${escapeHtml(optText)}</span>
+        <span class="opt-text">${formatScientificMath(escapeHtml(optText))}</span>
         <span class="opt-status-icon"></span>
       `;
 
@@ -1720,10 +1852,10 @@
 
     DOM.expCorrectBanner.innerHTML = `
       <strong>Correct Answer: Option ${correctLetter}</strong>
-      ${correctText ? `— <em>${escapeHtml(correctText)}</em>` : ''}
+      ${correctText ? `— <em>${formatScientificMath(escapeHtml(correctText))}</em>` : ''}
     `;
 
-    DOM.expText.textContent = q.explanation || 'No detailed explanation provided for this question.';
+    DOM.expText.innerHTML = formatScientificMath(escapeHtml(q.explanation || 'No detailed explanation provided for this question.')).replace(/\n/g, '<br>');
     DOM.explanationBox.style.display = 'block';
 
     if (state.autoScrollExp) {
@@ -1905,28 +2037,28 @@
           ${statusHtml}
         </div>
 
-        <div class="rev-q-text">${escapeHtml(q.question)}</div>
+        <div class="rev-q-text">${formatScientificMath(escapeHtml(q.question))}</div>
 
         <div class="rev-answers-summary">
           ${isWrong ? `
             <div class="rev-ans-row user-wrong">
               <span>Your Answer:</span>
-              <strong>Option ${userSelected}: ${escapeHtml(userSelectedText)}</strong>
+              <strong>Option ${userSelected}: ${formatScientificMath(escapeHtml(userSelectedText))}</strong>
             </div>
             <div class="rev-ans-row correct-ans">
               <span>Correct Answer:</span>
-              <strong>Option ${correctLetter}: ${escapeHtml(correctText)}</strong>
+              <strong>Option ${correctLetter}: ${formatScientificMath(escapeHtml(correctText))}</strong>
             </div>
           ` : `
             <div class="rev-ans-row user-correct">
               <span>Answered:</span>
-              <strong>Option ${userSelected}: ${escapeHtml(userSelectedText)} (Correct)</strong>
+              <strong>Option ${userSelected}: ${formatScientificMath(escapeHtml(userSelectedText))} (Correct)</strong>
             </div>
           `}
         </div>
 
         <div class="rev-exp-box">
-          <strong style="color: #ffffff;">Explanation / Description:</strong> ${escapeHtml(q.explanation || 'No explanation available.')}
+          <strong style="color: #ffffff;">Explanation / Description:</strong> ${formatScientificMath(escapeHtml(q.explanation || 'No explanation available.')).replace(/\n/g, '<br>')}
         </div>
       `;
 
