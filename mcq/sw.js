@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcq-practice-v12';
+const CACHE_NAME = 'mcq-practice-v13';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -49,6 +49,38 @@ self.addEventListener('fetch', (event) => {
         return caches.match(event.request);
       })
   );
+});
+
+// Background Alarm Scheduler in Service Worker
+// Operates independently even when user is using Instagram, YouTube, or another app
+let bgAlarmTimer = null;
+
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  if (event.data.action === 'SCHEDULE_ALARM') {
+    if (bgAlarmTimer) clearTimeout(bgAlarmTimer);
+    const delayMs = Math.max(0, event.data.targetTime - Date.now());
+    const notifData = event.data.notification;
+
+    bgAlarmTimer = setTimeout(() => {
+      // 1. Show high-priority Heads-Up Notification over active apps (e.g. Instagram)
+      if (notifData) {
+        self.registration.showNotification(notifData.title, notifData.options);
+      }
+      // 2. Wake all client windows and tell them to start industrial siren audio & vibration
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        clientList.forEach((client) => {
+          client.postMessage({ action: 'TRIGGER_ALARM' });
+        });
+      });
+    }, delayMs);
+  } else if (event.data.action === 'CANCEL_ALARM') {
+    if (bgAlarmTimer) {
+      clearTimeout(bgAlarmTimer);
+      bgAlarmTimer = null;
+    }
+  }
 });
 
 // Handle clicking on notification from lock screen / notification tray

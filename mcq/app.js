@@ -129,22 +129,51 @@
   }
   const industrialCurve = makeIndustrialDistortionCurve(18);
 
+  // Auto-retry handler for HTML5 siren audio playback.
+  // When another app (like Instagram, TikTok, YouTube) is active, audio focus may be briefly
+  // contended. Retrying every 350ms ensures the siren sounds the moment audio focus can be gained or ducked.
+  let sirenRetryTimer = null;
+
+  function attemptPlayHtml5Siren(retries = 25) {
+    if (!DOM.audioSiren || !alarmState.active) return;
+    try {
+      DOM.audioSiren.currentTime = 0;
+      DOM.audioSiren.volume = 1.0;
+      const playPromise = DOM.audioSiren.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          if (sirenRetryTimer) {
+            clearTimeout(sirenRetryTimer);
+            sirenRetryTimer = null;
+          }
+        }).catch(err => {
+          console.log('HTML5 siren play waiting for audio focus/gesture, retrying...', err);
+          if (retries > 0 && alarmState.active) {
+            if (sirenRetryTimer) clearTimeout(sirenRetryTimer);
+            sirenRetryTimer = setTimeout(() => {
+              attemptPlayHtml5Siren(retries - 1);
+            }, 350);
+          }
+        });
+      }
+    } catch (e) {
+      if (retries > 0 && alarmState.active) {
+        if (sirenRetryTimer) clearTimeout(sirenRetryTimer);
+        sirenRetryTimer = setTimeout(() => {
+          attemptPlayHtml5Siren(retries - 1);
+        }, 350);
+      }
+    }
+  }
+
   // Synthesizes a true heavy mechanical dual-rotor industrial factory / plant siren
   function startSirenSound(durationSeconds = 20) {
     stopSirenSound();
     if (!state.soundEnabled) return;
 
-    // 1. Play dedicated 20-second industrial siren WAV via HTML5 Audio element.
+    // 1. Play dedicated 20-second industrial siren WAV via HTML5 Audio element with auto-retry
     // HTML5 Audio has full background/screen-off audio routing on mobile devices (Android/iOS)!
-    if (DOM.audioSiren) {
-      try {
-        DOM.audioSiren.currentTime = 0;
-        DOM.audioSiren.volume = 1.0;
-        DOM.audioSiren.play().catch(e => {
-          console.log('HTML5 siren play deferred:', e);
-        });
-      } catch (e) {}
-    }
+    attemptPlayHtml5Siren(25);
 
     // 2. Dual-Engine Web Audio Synthesizer (for enriched harmonics when foreground/active)
     if (!audioCtx) return;
@@ -230,6 +259,10 @@
   }
 
   function stopSirenSound() {
+    if (sirenRetryTimer) {
+      clearTimeout(sirenRetryTimer);
+      sirenRetryTimer = null;
+    }
     if (DOM.audioSiren) {
       try {
         DOM.audioSiren.pause();
@@ -530,11 +563,83 @@
     }
   }
 
-  // Listen for background messages from Service Worker (e.g. user tapped 'Silence Siren' on lock screen)
+  // Schedules background Heads-Up Notification & Alarm in Service Worker.
+  // This timer runs independently in the Service Worker background thread,
+  // so even if the user minimizes the tab to scroll Instagram or watch reels,
+  // the notification pops up at the exact interval (3m, 5m, 10m) and triggers the industrial siren!
+  function scheduleServiceWorkerAlarm(targetTime) {
+    if (!('serviceWorker' in navigator)) return;
+    const currentQ = state.activePool[state.currentIndex];
+    const intervalText = `${state.pocketIntervalMinutes}-Min`;
+    const subjectName = currentQ ? (currentQ.subject_code || currentQ.subject || 'MCQ') : 'MCQ';
+    const qSnippet = currentQ ? (currentQ.question.length > 85 ? currentQ.question.slice(0, 85) + '...' : currentQ.question) : 'Time for your next MCQ question!';
+
+    const notifPayload = {
+      title: `🚨 ${intervalText} MCQ ALERT [${subjectName}]`,
+      options: {
+        body: `${qSnippet}\n⚡ 20s industrial siren & 10s vibration ringing! Tap to answer!`,
+        icon: './icon.png',
+        badge: './icon.png',
+        tag: 'pocket-mcq-industrial-siren',
+        renotify: true,
+        requireInteraction: true,
+        silent: false,
+        vibrate: [
+          800, 200, 800, 200, 800, 200, 800, 200, 800, 200,
+          800, 200, 800, 200, 800, 200, 800, 200, 800, 200
+        ],
+        actions: [
+          { action: 'silence', title: '🔕 Silence Siren' },
+          { action: 'open', title: '📝 Open Question' }
+        ],
+        data: { url: './index.html' }
+      }
+    };
+
+    const msg = {
+      action: 'SCHEDULE_ALARM',
+      targetTime: targetTime,
+      notification: notifPayload
+    };
+
+    try {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage(msg);
+      } else {
+        navigator.serviceWorker.ready.then(reg => {
+          if (reg && reg.active) reg.active.postMessage(msg);
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  function cancelServiceWorkerAlarm() {
+    if (!('serviceWorker' in navigator)) return;
+    const msg = { action: 'CANCEL_ALARM' };
+    try {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage(msg);
+      } else {
+        navigator.serviceWorker.ready.then(reg => {
+          if (reg && reg.active) reg.active.postMessage(msg);
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  // Listen for background messages from Service Worker (e.g. user tapped 'Silence Siren' or SW alarm triggered)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data && (event.data.action === 'SILENCE_SIREN' || event.data.action === 'OPEN_MCQ')) {
+      if (!event.data) return;
+      if (event.data.action === 'SILENCE_SIREN') {
         silenceSirenOnly();
+      } else if (event.data.action === 'OPEN_MCQ') {
+        silenceSirenOnly();
+      } else if (event.data.action === 'TRIGGER_ALARM') {
+        // Triggered by Service Worker background timer even when phone is minimized or running Instagram
+        if (state.pocketMode && !alarmState.active) {
+          triggerPocketQuestionAlert();
+        }
       }
     });
   }
@@ -864,6 +969,7 @@
     // If Pocket Study Mode is running, immediately reset the countdown to the newly selected interval
     if (state.pocketMode && state.pocketStandbyActive) {
       state.targetAlertTime = Date.now() + (minutes * 60 * 1000);
+      scheduleServiceWorkerAlarm(state.targetAlertTime);
       updatePocketTopBar(true);
       showToast(`MCQ Siren Interval changed to ${minutes} Minutes`);
     }
@@ -961,6 +1067,9 @@
     // Start background audio keepalive to prevent smartphone throttling when minimized or screen off
     startBackgroundKeepAlive();
 
+    // Schedule background alarm in Service Worker (fires over Instagram/other apps)
+    scheduleServiceWorkerAlarm(state.targetAlertTime);
+
     if (timerWorker) {
       timerWorker.postMessage('start');
     }
@@ -969,6 +1078,7 @@
   function stopPocketTimer() {
     state.pocketStandbyActive = false;
     state.targetAlertTime = null;
+    cancelServiceWorkerAlarm();
     stopPocketEmergencyAlarm();
     stopBackgroundKeepAlive();
     updatePocketTopBar(false);
@@ -1045,6 +1155,7 @@
     // Automatically loop: reset timer so next alert fires at chosen interval!
     if (state.pocketMode) {
       state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
+      scheduleServiceWorkerAlarm(state.targetAlertTime);
       updatePocketTopBar(true);
     }
   }
@@ -1246,6 +1357,47 @@
 
     // Keyboard Shortcuts for Rapid Practice on Desktop / Laptop
     document.addEventListener('keydown', handleKeyboardShortcuts);
+
+    // Auto-resume keep-alive audio if Instagram or other background apps pause or duck audio
+    if (DOM.audioKeepAlive) {
+      DOM.audioKeepAlive.addEventListener('pause', () => {
+        if (state.pocketMode && !alarmState.active) {
+          setTimeout(() => {
+            if (state.pocketMode && !alarmState.active && DOM.audioKeepAlive && DOM.audioKeepAlive.paused) {
+              DOM.audioKeepAlive.play().catch(() => {});
+            }
+          }, 800);
+        }
+      });
+    }
+
+    // Auto-resume siren if temporarily ducked/paused while alarm is active
+    if (DOM.audioSiren) {
+      DOM.audioSiren.addEventListener('pause', () => {
+        if (alarmState.active && (Date.now() < alarmState.endTime)) {
+          setTimeout(() => {
+            if (alarmState.active && DOM.audioSiren && DOM.audioSiren.paused) {
+              DOM.audioSiren.play().catch(() => {});
+            }
+          }, 350);
+        }
+      });
+    }
+
+    // Tab visibility change: ensure audioContext and keep-alive are alive when user switches back
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        if (state.pocketMode && !alarmState.active && DOM.audioKeepAlive && DOM.audioKeepAlive.paused) {
+          DOM.audioKeepAlive.play().catch(() => {});
+        }
+        if (alarmState.active && DOM.audioSiren && DOM.audioSiren.paused) {
+          DOM.audioSiren.play().catch(() => {});
+        }
+      }
+    });
   }
 
   function handleKeyboardShortcuts(e) {
