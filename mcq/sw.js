@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcq-practice-v11';
+const CACHE_NAME = 'mcq-practice-v12';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const ASSETS_TO_CACHE = [
   './app.js',
   './manifest.json',
   './icon.png',
+  './industrial_siren.wav',
+  './silence.wav',
   './data/subjects.json'
 ];
 
@@ -52,11 +54,26 @@ self.addEventListener('fetch', (event) => {
 // Handle clicking on notification from lock screen / notification tray
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  if (event.action === 'silence') {
+    // User pressed 'Silence Siren' action button on lock screen notification
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        clientList.forEach((client) => {
+          client.postMessage({ action: 'SILENCE_SIREN' });
+        });
+      })
+    );
+    return;
+  }
+
+  // Open or focus client tab
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
         if ('focus' in client) {
+          client.postMessage({ action: 'OPEN_MCQ' });
           return client.focus();
         }
       }

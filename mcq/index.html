@@ -34,7 +34,12 @@
       <div class="nav-right">
         <!-- Pocket Mode Top Bar Widget (Visible while playing) -->
         <div class="nav-pocket-group" id="nav-pocket-group" style="display: none;">
-          <span class="nav-pocket-timer" id="nav-pocket-timer" title="Time until next 5-minute MCQ siren alert">⏱️ 05:00</span>
+          <span class="nav-pocket-timer" id="nav-pocket-timer" title="Time until next MCQ siren alert">⏱️ 05:00</span>
+          <div class="pocket-interval-mini-group" id="nav-pocket-interval-mini">
+            <button type="button" class="btn-interval-mini" data-interval="3" title="3 Minute Interval">3m</button>
+            <button type="button" class="btn-interval-mini active" data-interval="5" title="5 Minute Interval">5m</button>
+            <button type="button" class="btn-interval-mini" data-interval="10" title="10 Minute Interval">10m</button>
+          </div>
           <button type="button" id="btn-nav-pocket-toggle" class="btn-nav-pocket-toggle" title="Toggle Pocket Study Mode ON/OFF">
             <span class="pocket-pulse-dot" id="nav-pocket-dot"></span>
             <span id="nav-pocket-label">Pocket: ON</span>
@@ -167,16 +172,16 @@
             </div>
           </div>
 
-          <!-- Pocket Study Mode (5-min Background Alarm & Vibration) -->
+          <!-- Pocket Study Mode (Background Alarm & Vibration) -->
           <div class="settings-group">
-            <label class="group-title">Pocket Study Mode (Background Alerts)</label>
+            <label class="group-title">Pocket Study Mode (Background Siren Reminders)</label>
             <div class="toggle-option">
               <label class="switch-label">
                 <input type="checkbox" id="chk-pocket-mode">
                 <span class="switch-slider"></span>
                 <span class="label-text">
-                  <strong>Enable Pocket Study Mode (Continuous 5-Min Alerts)</strong>
-                  <small>Plays 20s heavy industrial siren & 10s vibration every 5 minutes until you stop it</small>
+                  <strong>Enable Pocket Study Mode (Reminds even if phone is off or app is minimized)</strong>
+                  <small>Plays 20s industrial siren & 10s vibration at your chosen interval (3, 5, or 10 min) until stopped</small>
                 </span>
               </label>
             </div>
@@ -238,6 +243,11 @@
             <div class="stat-pill remaining"><span id="stat-remaining">50</span> Remaining</div>
             <div class="pocket-topbar-widget" id="scoreboard-pocket-widget" style="display: none;">
               <span class="pocket-timer-pill" id="scoreboard-pocket-timer">⏱️ 05:00</span>
+              <div class="pocket-interval-mini-group" id="scoreboard-pocket-interval-mini">
+                <button type="button" class="btn-interval-mini" data-interval="3" title="3 Minute Interval">3m</button>
+                <button type="button" class="btn-interval-mini active" data-interval="5" title="5 Minute Interval">5m</button>
+                <button type="button" class="btn-interval-mini" data-interval="10" title="10 Minute Interval">10m</button>
+              </div>
               <button type="button" id="btn-scoreboard-pocket-toggle" class="btn-pocket-toggle-pill" title="Toggle Pocket Study Mode ON/OFF">
                 <span class="pocket-pulse-dot" id="scoreboard-pocket-dot"></span>
                 <span id="scoreboard-pocket-label">Pocket: ON</span>
@@ -442,6 +452,10 @@
     <!-- Toast Notification for smartphone copy / info -->
     <div id="toast" class="toast"></div>
   </div>
+
+  <!-- Background Alarm & Siren Audio Players -->
+  <audio id="audio-siren" preload="auto" src="./industrial_siren.wav"></audio>
+  <audio id="audio-keepalive" preload="auto" loop src="./silence.wav"></audio>
 
   <script src="app.js"></script>
 </body>

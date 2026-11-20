@@ -1548,6 +1548,40 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+.pocket-interval-mini-group {
+  display: inline-flex;
+  align-items: center;
+  background-color: #18181B;
+  border: 1px solid #27272A;
+  border-radius: var(--radius-full);
+  padding: 1px 2px;
+  gap: 2px;
+}
+
+.btn-interval-mini {
+  background: transparent;
+  color: #A1A1AA;
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-interval-mini:hover {
+  color: #FFFFFF;
+  background-color: #27272A;
+}
+
+.btn-interval-mini.active {
+  background-color: #FFFFFF;
+  color: #000000;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.4);
+}
+
 .btn-nav-pocket-toggle {
   background-color: #18181B;
   color: #D4D4D8;

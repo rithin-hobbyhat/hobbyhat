@@ -25,9 +25,12 @@
     autoScrollExp: true,
     soundEnabled: true,
 
-    // Pocket Study Mode (5-min Background Alarm & Notification)
+    // Pocket Study Mode (Background Alarm & Notification in 3, 5, or 10 min intervals)
     pocketMode: false,
-    pocketIntervalMinutes: 5,
+    pocketIntervalMinutes: (() => {
+      const saved = parseInt(localStorage.getItem('mcq_pocket_interval'), 10);
+      return [3, 5, 10].includes(saved) ? saved : 5;
+    })(),
     pocketStandbyActive: false,
     targetAlertTime: null,
     wakeLock: null,
@@ -129,7 +132,22 @@
   // Synthesizes a true heavy mechanical dual-rotor industrial factory / plant siren
   function startSirenSound(durationSeconds = 20) {
     stopSirenSound();
-    if (!state.soundEnabled || !audioCtx) return;
+    if (!state.soundEnabled) return;
+
+    // 1. Play dedicated 20-second industrial siren WAV via HTML5 Audio element.
+    // HTML5 Audio has full background/screen-off audio routing on mobile devices (Android/iOS)!
+    if (DOM.audioSiren) {
+      try {
+        DOM.audioSiren.currentTime = 0;
+        DOM.audioSiren.volume = 1.0;
+        DOM.audioSiren.play().catch(e => {
+          console.log('HTML5 siren play deferred:', e);
+        });
+      } catch (e) {}
+    }
+
+    // 2. Dual-Engine Web Audio Synthesizer (for enriched harmonics when foreground/active)
+    if (!audioCtx) return;
     try {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const now = audioCtx.currentTime;
@@ -212,6 +230,12 @@
   }
 
   function stopSirenSound() {
+    if (DOM.audioSiren) {
+      try {
+        DOM.audioSiren.pause();
+        DOM.audioSiren.currentTime = 0;
+      } catch (e) {}
+    }
     if (sirenNodes.stopTimeout) {
       clearTimeout(sirenNodes.stopTimeout);
       sirenNodes.stopTimeout = null;
@@ -298,6 +322,76 @@
     }
   }
 
+  // =========================================================================
+  // BACKGROUND AUDIO & SLEEP-PREVENTION ENGINE (Works with phone screen off)
+  // =========================================================================
+  let wakeLockObj = null;
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator && !wakeLockObj) {
+        wakeLockObj = await navigator.wakeLock.request('screen');
+        wakeLockObj.addEventListener('release', () => { wakeLockObj = null; });
+      }
+    } catch (e) {}
+  }
+
+  function releaseWakeLock() {
+    if (wakeLockObj) {
+      try { wakeLockObj.release(); } catch (e) {}
+      wakeLockObj = null;
+    }
+  }
+
+  // Starts a silent background keep-alive audio loop.
+  // Mobile browsers (Chrome Android / iOS Safari) treat active audio sessions as high-priority
+  // media playback, preventing the OS from killing the Web Worker or throttling timers when
+  // the phone is minimized or screen is locked/turned off.
+  function startBackgroundKeepAlive() {
+    if (DOM.audioKeepAlive) {
+      try {
+        DOM.audioKeepAlive.volume = 0.01;
+        DOM.audioKeepAlive.play().catch(e => {
+          console.log('Keep-alive audio standby waiting for gesture:', e);
+        });
+      } catch (e) {}
+    }
+
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: `Pocket Study Mode (${state.pocketIntervalMinutes}m Alert)`,
+          artist: 'MCQ Reminder Active',
+          album: 'Runs even if phone is off or minimized',
+          artwork: [
+            { src: './icon.png', sizes: '192x192', type: 'image/png' },
+            { src: './icon.png', sizes: '512x512', type: 'image/png' }
+          ]
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.setActionHandler('pause', () => silenceSirenOnly());
+        navigator.mediaSession.setActionHandler('stop', () => silenceSirenOnly());
+      } catch (e) {}
+    }
+
+    requestWakeLock();
+  }
+
+  function stopBackgroundKeepAlive() {
+    if (DOM.audioKeepAlive) {
+      try {
+        DOM.audioKeepAlive.pause();
+        DOM.audioKeepAlive.currentTime = 0;
+      } catch (e) {}
+    }
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'none';
+      } catch (e) {}
+    }
+    releaseWakeLock();
+  }
+
   // Starts 20-Second Emergency Siren & 10-Second Vibration Alert
   function startPocketEmergencyAlarm() {
     stopPocketEmergencyAlarm();
@@ -305,13 +399,32 @@
     const durationMs = 20000;
     alarmState.endTime = Date.now() + durationMs;
 
-    // 1. Start 20-Second Emergency Siren Sound
+    // 1. Start 20-Second Emergency Siren Sound (Plays via HTML5 Audio and Web Audio)
     startSirenSound(20);
 
     // 2. Start 10-Second Smartphone Vibration
     start10SecondVibration();
 
-    // 3. Visual 20-Second Countdown & Pressure Bar
+    // 3. MediaSession lock-screen card with pause/silence button
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: `🚨 ${state.pocketIntervalMinutes}-MIN MCQ INDUSTRIAL SIREN!`,
+          artist: 'Press Pause or Tap to Answer Question',
+          album: 'Pocket Study Mode Alert',
+          artwork: [
+            { src: './icon.png', sizes: '192x192', type: 'image/png' },
+            { src: './icon.png', sizes: '512x512', type: 'image/png' }
+          ]
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.setActionHandler('pause', () => silenceSirenOnly());
+        navigator.mediaSession.setActionHandler('stop', () => silenceSirenOnly());
+        navigator.mediaSession.setActionHandler('nexttrack', () => silenceSirenOnly());
+      } catch (e) {}
+    }
+
+    // 4. Visual 20-Second Countdown & Pressure Bar
     if (DOM.pocketAlarmBanner) {
       DOM.pocketAlarmBanner.style.display = 'block';
       if (DOM.alarmCountdownSec) DOM.alarmCountdownSec.textContent = '20s';
@@ -331,7 +444,7 @@
       }, 100);
     }
 
-    // 4. Master timeout to stop after 20 seconds
+    // 5. Master timeout to stop after 20 seconds
     alarmState.timerId = setTimeout(() => {
       stopPocketEmergencyAlarm();
     }, durationMs);
@@ -353,6 +466,11 @@
     if (DOM.pocketAlarmBanner) {
       DOM.pocketAlarmBanner.style.display = 'none';
     }
+
+    // If Pocket Study Mode is still active, restore background keep-alive audio so next reminder fires!
+    if (state.pocketMode) {
+      startBackgroundKeepAlive();
+    }
   }
 
   // Silence Siren Only (stops sound and vibration without canceling Pocket Study Mode)
@@ -373,11 +491,12 @@
     return false;
   }
 
-  // Send Pocket System Notification with 10-second vibration
+  // Send Pocket System Notification with 10-second vibration and lock screen action buttons
   function sendPocketNotification(q) {
-    const title = `🚨 20s INDUSTRIAL SIREN [${q.subject_code || q.subject}]`;
+    const intervalText = `${state.pocketIntervalMinutes}-Min`;
+    const title = `🚨 ${intervalText} MCQ ALERT [${q.subject_code || q.subject}]`;
     const snippet = q.question.length > 85 ? q.question.slice(0, 85) + '...' : q.question;
-    const body = `${snippet}\n⚡ 20s industrial plant siren & 10s vibration ringing! Tap to answer!`;
+    const body = `${snippet}\n⚡ 20s industrial siren & 10s vibration ringing! Tap to answer!`;
     const options = {
       body: body,
       icon: './icon.png',
@@ -385,10 +504,15 @@
       tag: 'pocket-mcq-industrial-siren',
       renotify: true,
       requireInteraction: true,
+      silent: false,
       // 10 full seconds vibration pattern (10,000 ms)
       vibrate: [
         800, 200, 800, 200, 800, 200, 800, 200, 800, 200,
         800, 200, 800, 200, 800, 200, 800, 200, 800, 200
+      ],
+      actions: [
+        { action: 'silence', title: '🔕 Silence Siren' },
+        { action: 'open', title: '📝 Open Question' }
       ],
       data: { url: './index.html' }
     };
@@ -406,6 +530,15 @@
     }
   }
 
+  // Listen for background messages from Service Worker (e.g. user tapped 'Silence Siren' on lock screen)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && (event.data.action === 'SILENCE_SIREN' || event.data.action === 'OPEN_MCQ')) {
+        silenceSirenOnly();
+      }
+    });
+  }
+
   // DOM Elements
   const DOM = {
     // Screens
@@ -420,6 +553,7 @@
     navSubtitle: document.getElementById('nav-subtitle'),
     navPocketGroup: document.getElementById('nav-pocket-group'),
     navPocketTimer: document.getElementById('nav-pocket-timer'),
+    navPocketIntervalMini: document.getElementById('nav-pocket-interval-mini'),
     btnNavPocketToggle: document.getElementById('btn-nav-pocket-toggle'),
     navPocketDot: document.getElementById('nav-pocket-dot'),
     navPocketLabel: document.getElementById('nav-pocket-label'),
@@ -454,9 +588,14 @@
     // Scoreboard Pocket Top Bar Widget
     scoreboardPocketWidget: document.getElementById('scoreboard-pocket-widget'),
     scoreboardPocketTimer: document.getElementById('scoreboard-pocket-timer'),
+    scoreboardPocketIntervalMini: document.getElementById('scoreboard-pocket-interval-mini'),
     btnScoreboardPocketToggle: document.getElementById('btn-scoreboard-pocket-toggle'),
     scoreboardPocketDot: document.getElementById('scoreboard-pocket-dot'),
     scoreboardPocketLabel: document.getElementById('scoreboard-pocket-label'),
+
+    // Background Audio Elements
+    audioSiren: document.getElementById('audio-siren'),
+    audioKeepAlive: document.getElementById('audio-keepalive'),
 
     // Pocket Standby View
     pocketStandbyView: document.getElementById('pocket-standby-view'),
@@ -705,6 +844,31 @@
     });
   }
 
+  // Sets and synchronizes pocket alert interval (3, 5, or 10 min)
+  function setPocketInterval(minutes) {
+    minutes = parseInt(minutes, 10);
+    if (![3, 5, 10].includes(minutes)) return;
+    state.pocketIntervalMinutes = minutes;
+    localStorage.setItem('mcq_pocket_interval', minutes);
+
+    // Synchronize all interval button groups across setup and top bars
+    document.querySelectorAll('#pocket-interval-selector .chip-btn, .pocket-interval-mini-group .btn-interval-mini').forEach(b => {
+      const bMin = parseInt(b.dataset.interval, 10);
+      if (bMin === minutes) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+
+    // If Pocket Study Mode is running, immediately reset the countdown to the newly selected interval
+    if (state.pocketMode && state.pocketStandbyActive) {
+      state.targetAlertTime = Date.now() + (minutes * 60 * 1000);
+      updatePocketTopBar(true);
+      showToast(`MCQ Siren Interval changed to ${minutes} Minutes`);
+    }
+  }
+
   // Updates Top Bar Pocket Timer & ON/OFF Buttons (Navbar & Scoreboard)
   function updatePocketTopBar(isActive, timeStr) {
     const isPlaying = DOM.screenPractice && DOM.screenPractice.classList.contains('active');
@@ -727,10 +891,22 @@
 
     if (DOM.navPocketTimer) {
       DOM.navPocketTimer.textContent = isModeOn ? `⏱️ ${displayTime}` : '⏱️ Off';
+      DOM.navPocketTimer.title = `Next ${state.pocketIntervalMinutes}-minute reminder alert`;
     }
     if (DOM.scoreboardPocketTimer) {
       DOM.scoreboardPocketTimer.textContent = isModeOn ? `⏱️ ${displayTime}` : '⏱️ Off';
+      DOM.scoreboardPocketTimer.title = `Next ${state.pocketIntervalMinutes}-minute reminder alert`;
     }
+
+    // Sync active mini interval chips in top bars
+    document.querySelectorAll('.pocket-interval-mini-group .btn-interval-mini').forEach(btn => {
+      const bMin = parseInt(btn.dataset.interval, 10);
+      if (bMin === state.pocketIntervalMinutes) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
 
     if (DOM.navPocketDot) {
       DOM.navPocketDot.style.display = isModeOn ? 'inline-block' : 'none';
@@ -743,10 +919,10 @@
     toggleBtns.forEach(btn => {
       if (isModeOn) {
         btn.classList.add('active');
-        btn.title = 'Pocket Study Mode is ON (Click to turn OFF)';
+        btn.title = `Pocket Study Mode is ON (${state.pocketIntervalMinutes}m cycle). Click to turn OFF`;
       } else {
         btn.classList.remove('active');
-        btn.title = 'Pocket Study Mode is OFF (Click to turn ON)';
+        btn.title = 'Pocket Study Mode is OFF. Click to turn ON';
       }
     });
   }
@@ -782,6 +958,9 @@
 
     updatePocketTopBar(true);
 
+    // Start background audio keepalive to prevent smartphone throttling when minimized or screen off
+    startBackgroundKeepAlive();
+
     if (timerWorker) {
       timerWorker.postMessage('start');
     }
@@ -791,6 +970,7 @@
     state.pocketStandbyActive = false;
     state.targetAlertTime = null;
     stopPocketEmergencyAlarm();
+    stopBackgroundKeepAlive();
     updatePocketTopBar(false);
     if (timerWorker) {
       timerWorker.postMessage('stop');
@@ -802,6 +982,7 @@
     if (DOM.chkPocketMode) DOM.chkPocketMode.checked = false;
     stopPocketTimer();
     stopPocketEmergencyAlarm();
+    stopBackgroundKeepAlive();
     if (wrongAnswerResumeTimer) {
       clearTimeout(wrongAnswerResumeTimer);
       wrongAnswerResumeTimer = null;
@@ -820,7 +1001,7 @@
     await requestNotificationPermission();
     startPocketTimer();
     updatePocketTopBar(true);
-    showToast(`Pocket Study Mode ON: ${state.pocketIntervalMinutes}-minute alert cycle active`);
+    showToast(`Pocket Study Mode ON: ${state.pocketIntervalMinutes}-minute alert cycle active (Works when minimized & screen off)`);
   }
 
   async function togglePocketStudyMode() {
@@ -831,7 +1012,7 @@
     }
   }
 
-  // Fires when 5-min timer completes
+  // Fires when selected interval timer completes
   function triggerPocketQuestionAlert() {
     stopPocketEmergencyAlarm();
 
@@ -859,9 +1040,9 @@
 
     // Trigger urgent 20-second industrial siren & 10-second vibration
     startPocketEmergencyAlarm();
-    showToast('🚨 5-Minute MCQ Alert! 20s Industrial Siren & 10s Vibration ringing...');
+    showToast(`🚨 ${state.pocketIntervalMinutes}-Minute MCQ Alert! 20s Industrial Siren & 10s Vibration ringing...`);
 
-    // Automatically loop: reset 5-minute timer so next alert fires in 5 minutes!
+    // Automatically loop: reset timer so next alert fires at chosen interval!
     if (state.pocketMode) {
       state.targetAlertTime = Date.now() + (state.pocketIntervalMinutes * 60 * 1000);
       updatePocketTopBar(true);
@@ -932,19 +1113,28 @@
         if (!granted && 'Notification' in window && Notification.permission === 'denied') {
           showToast('Please allow browser notifications in site settings for pocket alerts');
         } else {
-          showToast('5-Minute Pocket Mode Enabled');
+          showToast(`${state.pocketIntervalMinutes}-Minute Pocket Mode Enabled (Works in background & screen off)`);
         }
       }
     });
 
-    // Pocket Interval Selector
-    DOM.pocketIntervalSelector.addEventListener('click', (e) => {
-      const btn = e.target.closest('.chip-btn');
-      if (!btn) return;
-      DOM.pocketIntervalSelector.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.pocketIntervalMinutes = parseInt(btn.dataset.interval, 10) || 5;
-    });
+    // Pocket Interval Selectors (Setup Screen & Top Bars)
+    function attachIntervalGroup(container) {
+      if (!container) return;
+      container.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-interval]');
+        if (!btn) return;
+        const minutes = parseInt(btn.dataset.interval, 10);
+        setPocketInterval(minutes);
+      });
+    }
+
+    attachIntervalGroup(DOM.pocketIntervalSelector);
+    attachIntervalGroup(DOM.navPocketIntervalMini);
+    attachIntervalGroup(DOM.scoreboardPocketIntervalMini);
+
+    // Initialize interval selector state from saved settings
+    setPocketInterval(state.pocketIntervalMinutes);
 
     // Test Sound, Vibration & Notification button (20s industrial siren & 10s vibration)
     DOM.btnTestNotification.addEventListener('click', async () => {
@@ -952,8 +1142,8 @@
       startPocketEmergencyAlarm();
       sendPocketNotification({
         subject_code: 'TEST',
-        subject: 'Demo 20s Industrial Siren Alert',
-        question: 'This is a test: 20-second industrial siren and 10-second vibration are ringing!'
+        subject: `Demo ${state.pocketIntervalMinutes}m Industrial Siren Alert`,
+        question: `This is a test: 20-second industrial siren and 10-second vibration are ringing for your ${state.pocketIntervalMinutes}-minute reminder!`
       });
       showToast('20s Industrial Siren & 10s Vibration triggered!');
     });
@@ -1127,7 +1317,7 @@
       if (state.pocketMode) {
         await requestNotificationPermission();
         startPocketTimer();
-        showToast(`Pocket Mode Active: 5-minute alerts started`);
+        showToast(`Pocket Mode Active: ${state.pocketIntervalMinutes}-minute reminders started (Works in background)`);
       } else {
         updatePocketTopBar(false);
       }
