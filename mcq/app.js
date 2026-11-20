@@ -1577,18 +1577,86 @@
     ];
     symMap.forEach(([reg, rep]) => { text = text.replace(reg, rep); });
 
-    // 3. Subscripts
-    const subMap = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','x':'ₓ','n':'ₙ','m':'ₘ'};
-    text = text.replace(/_([0-9xnm])\b/g, (m, c) => subMap[c] || m);
-    text = text.replace(/_\{([0-9xnm]+)\}/g, (m, cs) => cs.split('').map(c => subMap[c] || c).join(''));
+    // 3. Delta variants (Engineering pressure drops, temperature, elongation, boundary layer, electrical delta)
+    text = text.replace(/\bdelta_p_([a-zA-Z0-9]+)\b/g, 'Δp_$1');
+    text = text.replace(/\bdelta_p\b/gi, 'Δp');
+    text = text.replace(/\bdelta_T\b/g, 'ΔT');
+    text = text.replace(/\bdelta_t\b/g, 'Δt');
+    text = text.replace(/\bdelta_L([0-9]*)\b/g, 'ΔL$1');
+    text = text.replace(/\bdelta_V\b/g, 'ΔV');
+    text = text.replace(/\bdelta_h\b/g, 'Δh');
+    text = text.replace(/\bdelta_taper\b/g, 'δ_taper');
+    text = text.replace(/\bdelta_uniform\b/g, 'δ_uniform');
+    text = text.replace(/\bdelta_e\b/g, 'δₑ');
+    text = text.replace(/\bDelta\s+omega\b/g, 'Δω');
+    text = text.replace(/\bDelta-ferrite\b/g, 'δ-ferrite');
+    text = text.replace(/\bAlpha-ferrite\b/g, 'α-ferrite');
+    text = text.replace(/\bGamma-iron\b/g, 'γ-iron');
 
-    // 4. Superscripts
-    const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','x':'ˣ','st':'ˢᵗ','nd':'ⁿᵈ','rd':'ʳᵈ','th':'ᵗʰ'};
-    text = text.replace(/\^([0-9nx])\b/g, (m, c) => supMap[c] || m);
-    text = text.replace(/\^\\text\{([a-z]+)\}/g, (m, cs) => supMap[cs] || cs);
-    text = text.replace(/\^\{([0-9]+)\}/g, (m, cs) => cs.split('').map(c => supMap[c] || c).join(''));
+    // Electrical Delta connections
+    text = text.replace(/\bDelta\s*\(Delta\)/g, 'Δ (Delta)');
+    text = text.replace(/\bDelta-connected\b/g, 'Δ-connected');
+    text = text.replace(/\bDelta\s+stator\b/g, 'Δ stator');
+    text = text.replace(/\bDelta\s+connection\b/g, 'Δ connection');
+    text = text.replace(/\bDelta\s+winding\b/g, 'Δ winding');
 
-    // 5. Chemical formulas with common LaTeX wrappers
+    // Displacement thickness & boundary layer delta
+    text = text.replace(/\bdelta\*/g, 'δ*');
+    text = text.replace(/\bdelta\b(?!\s*connec|\s*stator|\s*wind|\s*loop)/g, 'δ');
+
+    // 4. Greek engineering & physics variables
+    text = text.replace(/\bsigma_([a-zA-Z0-9]+)\b/g, 'σ_$1');
+    text = text.replace(/\bsigma\b/g, 'σ');
+    text = text.replace(/\brho_([a-zA-Z0-9]+)\b/g, 'ρ_$1');
+    text = text.replace(/\brho\b/g, 'ρ');
+    text = text.replace(/\btheta\b/g, 'θ');
+    text = text.replace(/\btau_([a-zA-Z0-9]+)\b/g, 'τ_$1');
+    text = text.replace(/\btau\b/g, 'τ');
+    text = text.replace(/\bomega_([a-zA-Z0-9]+)\b/g, 'ω_$1');
+    text = text.replace(/\bomega\b/g, 'ω');
+    text = text.replace(/\bgamma_([a-zA-Z0-9]+)\b/g, 'γ_$1');
+    text = text.replace(/\bgamma\b/g, 'γ');
+    text = text.replace(/\blambda_([a-zA-Z0-9]+)\b/g, 'λ_$1');
+    text = text.replace(/\blambda\b/g, 'λ');
+    text = text.replace(/\bphi\b/g, 'ϕ');
+
+    text = text.replace(/\bmu_([a-zA-Z0-9]+)\b/g, 'µ_$1');
+    text = text.replace(/(?<=[0-9\s*+\-\/(\[=])mu(?=[0-9\s*+\-\/)\]\,]|$)/g, 'µ');
+    text = text.replace(/\bmu\b/g, 'µ');
+
+    text = text.replace(/(?<=[0-9\s*+\-\/(\[=])pi(?=[0-9\s*+\-\/)\]\,]|$)/g, 'π');
+    text = text.replace(/\bpi\b(?!\s*pipe|\s*pin|\s*pilot|\s*piston|\s*pitot)/g, 'π');
+
+    text = text.replace(/(?<=[0-9\s*+\-\/(\[=])nu(?=[0-9\s*+\-\/)\]\,]|$)/g, 'ν');
+    text = text.replace(/\bnu\b(?!\s*Unit|\s*number)/g, 'ν');
+
+    text = text.replace(/\bepsilon_([a-zA-Z0-9]+)\b/g, 'ε_$1');
+    text = text.replace(/\bepsilon\b/g, 'ε');
+
+    text = text.replace(/\beta_([a-zA-Z0-9]+)\b/g, 'η_$1');
+    text = text.replace(/\beta\b(?!\s*carr|\s*hour)/g, 'η');
+
+    text = text.replace(/\balpha([0-9]*)\b/g, 'α$1');
+    text = text.replace(/\balpha_([a-zA-Z0-9]+)\b/g, 'α_$1');
+
+    text = text.replace(/\bbeta([0-9]*)\b/g, 'β$1');
+
+    text = text.replace(/\bpsi(?=\s*[*\/=])/g, 'ψ');
+    text = text.replace(/=\s*psi\b/g, '= ψ');
+    text = text.replace(/\(psi\)/g, '(ψ)');
+
+    // 5. Square root: sqrt(...) -> √( ... )
+    text = text.replace(/\bsqrt\(([^()]+)\)/g, '√($1)');
+    text = text.replace(/\bsqrt\(([^)]+)\)/g, '√($1)');
+
+    // 6. Integrals
+    text = text.replace(/integral from 0 to ([a-zA-ZδΔ]+) of/g, '∫₀^$1');
+    text = text.replace(/integral from ([a-zA-Z0-9]+) to ([a-zA-Z0-9]+) of/g, '∫_{$1}^{$2}');
+
+    // 7. Approximations
+    text = text.replace(/\bapprox\.?\b/g, '≈');
+
+    // 8. Chemical formulas with common LaTeX wrappers
     text = text.replace(/\\text\{PbO\}_2/g, 'PbO₂');
     text = text.replace(/\\text\{H\}_2\\text\{SO\}_4/g, 'H₂SO₄');
     text = text.replace(/\\text\{PbSO\}_4/g, 'PbSO₄');
@@ -1597,11 +1665,31 @@
     text = text.replace(/\\text\{NO\}_\\text\{x\}/g, 'NOₓ');
     text = text.replace(/\\text\{NO\}_x/g, 'NOₓ');
 
-    // 6. Unwrap \text{...}
+    // 9. Unwrap \text{...}
     text = text.replace(/\\text\{([^}]*)\}/g, '$1');
 
-    // 7. Clean up escaped symbols and extra backslashes
+    // 10. Clean up escaped symbols and extra backslashes
     text = text.replace(/\\_/g, '_').replace(/\\ /g, ' ').replace(/\\%/g, '%');
+
+    // 11. Engineering sub-indices: L1 -> L₁, A1 -> A₁, etc.
+    const subNum = {'1':'₁','2':'₂','3':'₃','4':'₄'};
+    text = text.replace(/\b([yLAdEPVTrFrασ])[1-4]\b/g, (m, l) => l + (subNum[m.slice(-1)] || m.slice(-1)));
+    text = text.replace(/_max/g, 'ₘₐₓ').replace(/_min/g, 'ₘᵢₙ').replace(/_ph/g, 'ₚₕ');
+
+    // 12. General subscripts
+    const subMap = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','x':'ₓ','n':'ₙ','m':'ₘ','v':'ᵥ','p':'ₚ','t':'ₜ'};
+    text = text.replace(/_([0-9xnmvpt])\b/g, (m, c) => subMap[c] || m);
+    text = text.replace(/_\{([0-9xnmvpt]+)\}/g, (m, cs) => cs.split('').map(c => subMap[c] || c).join(''));
+
+    // 13. Superscripts
+    const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','x':'ˣ','st':'ˢᵗ','nd':'ⁿᵈ','rd':'ʳᵈ','th':'ᵗʰ'};
+    text = text.replace(/\^([0-9nx])\b/g, (m, c) => supMap[c] || m);
+    text = text.replace(/\^\\text\{([a-z]+)\}/g, (m, cs) => supMap[cs] || cs);
+    text = text.replace(/\^\{([0-9]+)\}/g, (m, cs) => cs.split('').map(c => supMap[c] || c).join(''));
+
+    // 14. Multiplication in equations: 2 * pi -> 2 · π
+    text = text.replace(/(\b[a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ]+)\s*\*\s*([a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ√])/g, '$1 · $2');
+    text = text.replace(/(\))\s*\*\s*(\()/g, '$1 · $2');
 
     return text;
   }
