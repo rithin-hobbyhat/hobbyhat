@@ -821,23 +821,40 @@
     }
   }
 
+  const FALLBACK_SUBJECTS = [
+    { "name": "AMVI", "code": "AMVI", "slug": "amvi", "count": 281 },
+    { "name": "AUTOMOBILE", "code": "AUTO", "slug": "auto", "count": 587 },
+    { "name": "AUTOMOBILE POLLUTION AND CONTROL", "code": "APC", "slug": "apc", "count": 100 },
+    { "name": "CHASSIS", "code": "CHS", "slug": "chs", "count": 700 },
+    { "name": "DRIVER-MECHANIC", "code": "DM", "slug": "dm", "count": 200 },
+    { "name": "ELECTRICAL SYSTEM", "code": "ELS", "slug": "els", "count": 750 },
+    { "name": "ENGINE AND RELATED SYSTEMS", "code": "ERS", "slug": "ers", "count": 580 },
+    { "name": "FLUID MECHANICS AND HYDRAULIC MACHINES", "code": "FMHM", "slug": "fmhm", "count": 205 },
+    { "name": "HYBRID AND ELECTRIC VEHICLES", "code": "HEV", "slug": "hev", "count": 200 },
+    { "name": "JOB RELATED TOPICS", "code": "JRT", "slug": "jrt", "count": 600 },
+    { "name": "MACHINE ELEMENTS, MATERIALS AND BOILERS", "code": "MEMB", "slug": "memb", "count": 284 },
+    { "name": "MODERN TECHNOLOGIES IN AUTOMOBILES", "code": "MTA", "slug": "mta", "count": 300 },
+    { "name": "STRENGTH OF MATERIALS", "code": "SOM", "slug": "som", "count": 249 },
+    { "name": "THERMAL ENGINEERING", "code": "TE", "slug": "te", "count": 162 },
+    { "name": "TOPIC BASED ON DRIVING LICENCE", "code": "TBDL", "slug": "tbdl", "count": 200 },
+    { "name": "TRANSMISSION SYSTEM", "code": "TRN", "slug": "trn", "count": 700 },
+    { "name": "TRANSPORTATION MANAGEMENT", "code": "TRM", "slug": "trm", "count": 400 }
+  ];
+
   async function loadSubjectsData() {
     try {
       const res = await fetch('./data/subjects.json');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      state.subjects = await res.json();
-      renderSubjectsGrid(state.subjects);
-      updateSelectionSummary();
+      if (res.ok) {
+        state.subjects = await res.json();
+      } else {
+        state.subjects = FALLBACK_SUBJECTS;
+      }
     } catch (err) {
-      console.error('Failed to load subjects:', err);
-      DOM.subjectsContainer.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: var(--danger);">
-          Failed to load subjects. Please ensure you are running via a web server or hosting online.
-          <br><br>
-          <small>${err.message}</small>
-        </div>
-      `;
+      console.warn('Fetch subjects failed, using fallback subjects catalog:', err);
+      state.subjects = FALLBACK_SUBJECTS;
     }
+    renderSubjectsGrid(state.subjects);
+    updateSelectionSummary();
   }
 
   function renderSubjectsGrid(list) {
@@ -1561,15 +1578,10 @@
       text = text.replace(/\$\$([^$]+)\$\$/g, '$1').replace(/\$([^$]+)\$/g, '$1');
     }
 
-    // 2. Escape raw inequality and HTML characters (< and >) outside of valid tags
-    text = text.replace(/<(?!\/?(sub|sup|em|strong|span)\b)/gi, '&lt;');
-    text = text.replace(/(?<!\/(sub|sup|em|strong|span))>(?![^<]*>)/gi, (m, offset, str) => {
-      const prefix = str.slice(0, offset);
-      if (/<(sub|sup|em|strong|span)[^>]*$/i.test(prefix) || /<\/(sub|sup|em|strong|span)$/i.test(prefix)) {
-        return '>';
-      }
-      return '&gt;';
-    });
+    // 2. Escape raw inequalities and HTML special characters (< and >) on plain text
+    text = text.replace(/&(?!amp;|lt;|gt;|quot;|#039;)/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;');
 
     // 3. Degree & temperature
     text = text.replace(/\^?\\circ\\text\{C\}|\^?\\circ\s*C|\\circ\s*C/g, '°C');
@@ -1756,16 +1768,13 @@
     text = text.replace(/\^\{([0-9]+)\}/g, (m, cs) => cs.split('').map(c => supMap[c] || c).join(''));
 
     // 18. Multiplication in equations: 2 * pi -> 2 · π
-    text = text.replace(/(\b[a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ]+)\s*\*\s*([a-zA-Z0-9α-ωΑ-ΩΔδσμτρθηεγλπψων²³⁴⁰¹ⁿ√])/g, '$1 · $2');
-    text = text.replace(/(\))\s*\*\s*(\()/g, '$1 · $2');
+    text = text.replace(/([a-zA-Z0-9\u0370-\u03FF\u2070-\u209F]+)\s*\*\s*([a-zA-Z0-9\u0370-\u03FF\u2070-\u209F√]+)/g, '$1 · $2');
+    text = text.replace(/\)\s*\*\s*\(/g, ') · (');
 
     // 19. Restore KaTeX blocks
     katexTokens.forEach((rendered, idx) => {
       text = text.replace(`@@@KATEX_${idx}@@@`, rendered);
     });
-
-    return text;
-  }
 
     return text;
   }
