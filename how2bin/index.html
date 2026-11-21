@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtm.js) -->
+  <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-NL523JTV"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+  </script>
+  <!-- Google AdSense script -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2387329460020928"
+     crossorigin="anonymous"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, user-scalable=yes">
+  <title>how2bin — Kid-Friendly Waste Sorting & 5S Safety Game | HOBBY HAT</title>
+  <meta name="description" content="Learn waste sorting, sharps safety, medical disposal, and the 5S organization method in a fun kid-friendly game on HOBBY HAT!">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗑️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation & Score HUD (Two Rows on Smartphones) -->
+  <header class="app-header">
+    <!-- ROW 1: Game Name on Left Top Corner + Menubar in Free Space -->
+    <div class="header-row-top">
+      <div class="brand-group">
+        <span class="brand-logo-icon">🗑️</span>
+        <div class="brand-text">
+          <h1 class="brand-title">how2bin</h1>
+          <span class="brand-tagline">how to manage trash</span>
+        </div>
+      </div>
+
+      <!-- Free space for showing menubar tabs -->
+      <nav class="game-nav-bar" id="game-nav-bar">
+        <button class="nav-tab-btn active" data-mode="prep_rush">
+          <span class="tab-label">Task 1</span>
+        </button>
+        <button class="nav-tab-btn" data-mode="sharps_mission">
+          <span class="tab-label">Task 2</span>
+        </button>
+        <button class="nav-tab-btn" data-mode="contamination">
+          <span class="tab-label">Task 3</span>
+        </button>
+        <button class="nav-tab-btn" data-mode="five_s">
+          <span class="tab-label">Task 4</span>
+        </button>
+        <button class="nav-tab-btn" data-mode="eco_town">
+          <span class="tab-label">Eco-Town</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ROW 2: Current Task Full Name + Quick Controls Toolbar -->
+    <div class="header-row-bottom">
+      <div class="current-task-name-box">
+        <span class="current-task-name-text" id="current-task-name-text">Task 1: Bin Match & Prep Rush</span>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="header-controls">
+        <button class="ctrl-btn" id="btn-sound-toggle" title="Toggle Sound Effects">
+          <span class="ctrl-icon">🔊</span><span class="ctrl-text"> Sound: ON</span>
+        </button>
+        <button class="ctrl-btn" id="btn-music-toggle" title="Toggle Cheerful Ambient Melody">
+          <span class="ctrl-icon">🎶</span><span class="ctrl-text"> Music: OFF</span>
+        </button>
+        <button class="ctrl-btn ctrl-guide" id="btn-guide" title="View Safety & Bin Rules Guide">
+          <span class="ctrl-icon">📖</span><span class="ctrl-text"> Guide</span>
+        </button>
+        <button class="ctrl-btn ctrl-reset" id="btn-reset-data" title="Reset your score and progress">
+          <span class="ctrl-icon">🔄</span><span class="ctrl-text"> Reset</span>
+        </button>
+        <div class="zoom-controls-group" title="Zoom In / Zoom Out Game Playground">
+          <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out playground">🔍−</button>
+          <span class="zoom-level-badge" id="zoom-level-badge">100%</span>
+          <button class="zoom-btn" id="btn-zoom-in" title="Zoom In playground">🔍+</button>
+          <button class="zoom-btn" id="btn-zoom-reset" title="Reset Zoom">↺</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Dynamic Container -->
+  <main class="main-layout-container">
+    <div id="main-game-arena" class="game-arena-wrapper">
+      <!-- Active Task rendered here -->
+    </div>
+  </main>
+
+  <!-- Safety Alert Modal (Needle & Hazard Warning) -->
+  <div id="safety-modal-overlay" class="modal-backdrop hidden">
+    <div class="safety-modal-card">
+      <div class="modal-hazard-icon">🚨</div>
+      <h3 id="modal-title" class="modal-hazard-title">Safety Alert!</h3>
+      <p id="modal-message" class="modal-hazard-desc">Never handle needles barehanded!</p>
+      <div class="modal-safety-rule-box">
+        <span class="safety-badge">GOLDEN RULE</span>
+        <p id="modal-rule"></p>
+      </div>
+      <button id="modal-dismiss-btn" class="btn btn-hazard-dismiss">
+        🗜️ I Understand - Equip Safety Tongs
+      </button>
+    </div>
+  </div>
+
+  <!-- Educational Guide & Rules Modal -->
+  <div id="guide-modal-overlay" class="modal-backdrop hidden">
+    <div class="guide-modal-card">
+      <div class="guide-header">
+        <h2>📚 how2bin Guide: 4 Standard Bins & 5S Method</h2>
+        <button id="guide-modal-close" class="btn-close-modal">✕</button>
+      </div>
+
+      <div class="guide-content-scroll">
+        <div class="guide-section">
+          <h3>🗑️ The 4 Standard Real-World Waste Bins</h3>
+          <div class="guide-stations-grid">
+            <div class="guide-station-item station-organic">
+              <h4>🌱 Green Bin (Wet / Biodegradable Waste)</h4>
+              <p>Food leftovers, vegetable & fruit peels, garden trimmings, tea leaves, and coffee grounds. Rich nutrient source for clean compost!</p>
+            </div>
+            <div class="guide-station-item station-recycle">
+              <h4>♻️ Blue Bin (Dry / Recyclable Waste)</h4>
+              <p>Clean paper, cardboard boxes, plastic packaging and bottles, glass jars, and metal cans/foils. <em>Must be empty, clean, and dry!</em></p>
+            </div>
+            <div class="guide-station-item station-sharps" style="border-left-color: #d03426;">
+              <h4>☣️ Red Bin (Sanitary Waste)</h4>
+              <p>Used diapers, sanitary napkins, band-aids, runny-nose tissues, and soiled bandages. <strong>Rule:</strong> Wrap securely in paper before disposal!</p>
+            </div>
+            <div class="guide-station-item station-hazardous" style="border-left-color: #4b5563;">
+              <h4>⚠️ Black Bin (Special Care / Domestic Hazardous)</h4>
+              <p>Batteries, bulbs, fluorescent tube lights, expired medicines, paint cans, and small e-waste. Keep sealed and tape battery poles!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>🏥 Indian Biomedical Waste Color Standard (Task 2)</h3>
+          <div class="guide-stations-grid">
+            <div class="guide-station-item" style="border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.08);">
+              <h4 style="color: #fbbf24;">☣️ Yellow Bin (Anatomical & Soiled Waste)</h4>
+              <p>Human anatomical waste, blood-soaked cotton, soiled dressings, lab cultures, chemical waste, and expired medicines. Incinerated or autoclaved safely.</p>
+            </div>
+            <div class="guide-station-item" style="border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.08);">
+              <h4 style="color: #f87171;">🧴 Red Bin (Recyclable Contaminated Plastics)</h4>
+              <p>Contaminated plastics: IV sets, tubing, catheters, syringes without needles, and rubber gloves. Autoclaved and recycled.</p>
+            </div>
+            <div class="guide-station-item" style="border-left: 4px solid #e2e8f0; background: rgba(226, 232, 240, 0.08);">
+              <h4 style="color: #ffffff;">🗡️ White Container (Puncture-Proof Metallic Sharps)</h4>
+              <p>Metallic sharps: needles, scalpels, fixed-needle syringes, and lancets. Puncture-resistant container prevents needle-stick injuries.</p>
+            </div>
+            <div class="guide-station-item" style="border-left: 4px solid #3b82f6; background: rgba(59, 130, 246, 0.08);">
+              <h4 style="color: #60a5fa;">🧪 Blue Bin (Glassware & Body Implants)</h4>
+              <p>Glass medicine vials, ampoules, microscope glass slides, and metallic orthopedic bone screws/implants.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>📐 The 5S Workplace & Home Method</h3>
+          <ul class="guide-5s-list">
+            <li><strong>1. Seiri (Sort):</strong> Clear clutter. Separate what you need from expired hazards and junk.</li>
+            <li><strong>2. Seiton (Set in Order):</strong> Outline and arrange every bin and safety tool in its designated spot.</li>
+            <li><strong>3. Seiso (Shine):</strong> Clean surfaces and inspect equipment so spills and cracks are caught early.</li>
+            <li><strong>4. Seiketsu (Standardize):</strong> Use clear color-coding and official hazard pictograms everywhere.</li>
+            <li><strong>5. Shitsuke (Sustain):</strong> Maintain daily tidiness and safety discipline even when nobody is looking!</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Center -->
+  <div id="toast-container" class="toast-center"></div>
+
+  <!-- JavaScript Modules in Dependency Order -->
+  <script src="js/utils.js"></script>
+  <script src="js/data/bins.js"></script>
+  <script src="js/data/items.js"></script>
+  <script src="js/data/five_s.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/dragDrop.js"></script>
+  <script src="js/modes/prepRush.js"></script>
+  <script src="js/modes/sharpsMission.js"></script>
+  <script src="js/modes/contamination.js"></script>
+  <script src="js/modes/fiveS.js"></script>
+  <script src="js/ecoTown.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -2282,6 +2282,10 @@ textarea.form-control {
   .game-iframe-wrapper {
     height: 580px;
   }
+  .game-iframe-wrapper.how2bin-frame-wrapper {
+    height: clamp(620px, 88vh, 850px);
+    min-height: 600px;
+  }
   .game-top-bar {
     flex-direction: column;
     align-items: flex-start;
