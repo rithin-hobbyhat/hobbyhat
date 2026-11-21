@@ -779,13 +779,15 @@ body {
 }
 
 /* Smartphone vertical responsive optimization */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
 
   html,
   body {
     width: 100% !important;
     max-width: 100% !important;
     overflow-x: hidden !important;
+    padding-top: 10mm !important;
+    box-sizing: border-box !important;
   }
 
   .app-header {
@@ -2906,7 +2908,7 @@ body {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .main-layout-container {
     padding: 4px 6px;
   }

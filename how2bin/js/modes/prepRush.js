@@ -100,7 +100,8 @@ class PrepRushMode {
     });
 
     DragEngine.setDropHandler((itemData, targetZoneEl, sourceEl) => {
-      const binId = targetZoneEl.dataset.binId;
+      const binItem = targetZoneEl.closest('[data-bin-id]') || targetZoneEl.closest('[data-drop-target]') || targetZoneEl;
+      const binId = binItem.dataset.binId || binItem.dataset.dropTarget || binItem.getAttribute('data-drop-target');
       this.handleBinDrop(itemData, binId, sourceEl);
     });
   }
@@ -190,7 +191,36 @@ class PrepRushMode {
   }
 
   handleBinDrop(item, targetBinId, itemEl) {
-    if (targetBinId === item.targetBin) {
+    if (!targetBinId) return;
+
+    // Check if the item matches targetBin or accepted alternative real-world bins
+    const validBins = [item.targetBin];
+    if (Array.isArray(item.acceptedBins)) {
+      validBins.push(...item.acceptedBins);
+    }
+    if (item.category === 'red') validBins.push('red');
+    if (item.id === 'injection_needle' || item.id === 'blood_lancet') {
+      validBins.push('black', 'red');
+    }
+    if (item.id === 'snotty_tissue' || item.id === 'cotton_swab') {
+      validBins.push('red', 'green', 'black');
+    }
+    if (item.id === 'used_bandaid' || item.id === 'blood_bandage' || item.id === 'sanitary_napkin' || item.id === 'baby_diaper') {
+      validBins.push('red', 'black');
+    }
+    if (item.id === 'tea_bag') {
+      validBins.push('green');
+    }
+    if (item.id === 'broken_plastic_ruler' || item.id === 'empty_glue_stick' || item.id === 'chocolate_foil_wrapper') {
+      validBins.push('blue', 'black');
+    }
+    if (item.id === 'broken_headphones' || item.id === 'broken_calculator' || item.id === 'frayed_charger_cable' || item.id === 'desk_lamp_bulb' || item.id === 'kids_fever_syrup') {
+      validBins.push('black', 'blue', 'red');
+    }
+
+    const isMatch = validBins.includes(targetBinId);
+
+    if (isMatch) {
       // Auto-equip tongs if required
       if (item.requiresTongs && !this.tongsEquipped) {
         this.toggleTongs(true);

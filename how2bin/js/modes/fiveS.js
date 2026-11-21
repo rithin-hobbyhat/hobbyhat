@@ -217,7 +217,8 @@ class FiveSMode {
 
     DragEngine.registerDropZones('.seiri-station-card');
     DragEngine.setDropHandler((itemData, targetZoneEl, sourceEl) => {
-      const targetType = targetZoneEl.dataset.seiriTarget;
+      const card = targetZoneEl.closest('.seiri-station-card') || targetZoneEl;
+      const targetType = card.dataset.seiriTarget;
       const isCorrect = (targetType === 'keep' && itemData.isNeeded) || (targetType === 'discard' && !itemData.isNeeded);
 
       if (isCorrect) {
@@ -321,7 +322,8 @@ class FiveSMode {
 
     DragEngine.registerDropZones('.seiton-slot-card');
     DragEngine.setDropHandler((itemData, targetZoneEl, sourceEl) => {
-      const expected = targetZoneEl.dataset.expectedItem;
+      const slot = targetZoneEl.closest('.seiton-slot-card') || targetZoneEl;
+      const expected = slot.dataset.expectedItem;
       if (itemData.id === expected) {
         AudioPlayer.dropSuccess();
         State.addScore(60);
@@ -567,7 +569,8 @@ class FiveSMode {
 
     DragEngine.registerDropZones('.standard-slot-card');
     DragEngine.setDropHandler((itemData, targetZoneEl, sourceEl) => {
-      if (itemData.id === targetZoneEl.dataset.targetId) {
+      const card = targetZoneEl.closest('.standard-slot-card') || targetZoneEl;
+      if (itemData.id === (card.dataset.targetId || card.getAttribute('data-target-id'))) {
         AudioPlayer.dropSuccess();
         State.addScore(75);
         matchedCount++;

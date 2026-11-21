@@ -41,16 +41,32 @@ class DragDropEngine {
     window.addEventListener('pointerup', (e) => this.handlePointerUp(e));
     window.addEventListener('pointercancel', (e) => this.handlePointerCancel(e));
 
-    // Prevent scrolling while actively dragging an item on mobile
+    // Mobile touch events fallback to ensure reliable drag & drop on all smartphones
     window.addEventListener('touchmove', (e) => {
       if (this.activeItem) {
         e.preventDefault();
         if (e.touches && e.touches[0]) {
           this.lastX = e.touches[0].clientX;
           this.lastY = e.touches[0].clientY;
+          if (this.ghostEl) {
+            this.ghostEl.style.left = `${this.lastX}px`;
+            this.ghostEl.style.top = `${this.lastY}px`;
+          }
+          const targetZone = this.findDropZoneUnder(this.lastX, this.lastY);
+          this.highlightDropZone(targetZone);
         }
       }
     }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+      if (this.activeItem) {
+        this.handlePointerUp(e);
+      }
+    });
+
+    window.addEventListener('touchcancel', () => {
+      this.handlePointerCancel();
+    });
   }
 
   makeDraggable(element, itemData) {
@@ -98,6 +114,10 @@ class DragDropEngine {
     this.ghostEl.style.top = `${clientY}px`;
     this.ghostEl.style.transform = 'translate(-50%, -50%) scale(1.15)';
     this.ghostEl.style.filter = 'drop-shadow(0 14px 28px rgba(0,0,0,0.5))';
+    // Ensure all descendant elements inside ghost have pointer-events none
+    this.ghostEl.querySelectorAll('*').forEach(el => {
+      el.style.pointerEvents = 'none';
+    });
     document.body.appendChild(this.ghostEl);
   }
 
@@ -118,8 +138,17 @@ class DragDropEngine {
   handlePointerUp(e) {
     if (!this.activeItem) return;
 
-    const clientX = (e.clientX !== undefined && e.clientX !== 0) ? e.clientX : this.lastX;
-    const clientY = (e.clientY !== undefined && e.clientY !== 0) ? e.clientY : this.lastY;
+    let clientX = this.lastX;
+    let clientY = this.lastY;
+
+    if (e) {
+      if (e.clientX !== undefined && e.clientX !== 0) clientX = e.clientX;
+      if (e.clientY !== undefined && e.clientY !== 0) clientY = e.clientY;
+      if (e.changedTouches && e.changedTouches[0]) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      }
+    }
 
     const targetZone = this.findDropZoneUnder(clientX, clientY);
     const item = this.activeItem;
@@ -148,37 +177,79 @@ class DragDropEngine {
   }
 
   findDropZoneUnder(clientX, clientY) {
-    // 1. High precision hit test using elementFromPoint
+    // 1. Temporarily hide ghost element to guarantee elementFromPoint never hits the dragged item
+    let prevDisplay = null;
+    if (this.ghostEl) {
+      prevDisplay = this.ghostEl.style.display;
+      this.ghostEl.style.display = 'none';
+    }
+
+    let el = null;
     if (typeof document.elementFromPoint === 'function') {
-      const el = document.elementFromPoint(clientX, clientY);
-      if (el) {
-        const matched = el.closest(this.dropZoneSelector) ||
-                        el.closest('.seiri-station-card') ||
-                        el.closest('.real-bin-station-card') ||
-                        el.closest('.real-med-container-card') ||
-                        el.closest('#quarantine-station') ||
-                        el.closest('.seiri-box') ||
-                        el.closest('.seiton-slot-card') ||
-                        el.closest('.standard-slot-card');
-        if (matched) return matched;
+      try {
+        el = document.elementFromPoint(clientX, clientY);
+      } catch (err) {}
+    }
+
+    if (this.ghostEl && prevDisplay !== null) {
+      this.ghostEl.style.display = prevDisplay;
+    }
+
+    if (el) {
+      const matched = el.closest(this.dropZoneSelector) ||
+                      el.closest('[data-bin-id]') ||
+                      el.closest('.real-bin-natural-item') ||
+                      el.closest('.real-bin-station-card') ||
+                      el.closest('.real-med-container-card') ||
+                      el.closest('#quarantine-station') ||
+                      el.closest('.seiri-box') ||
+                      el.closest('.seiri-station-card') ||
+                      el.closest('.seiton-slot-card') ||
+                      el.closest('.standard-slot-card');
+      if (matched) return matched;
+    }
+
+    // 2. High-precision proximity detection for smooth mobile touch drop
+    const zones = this.getDropZones();
+    if (!zones || zones.length === 0) return null;
+
+    let bestZone = null;
+    let minDistance = Infinity;
+
+    for (let zone of zones) {
+      const rect = zone.getBoundingClientRect();
+      const centerX = (rect.left + rect.right) / 2;
+      const centerY = (rect.top + rect.bottom) / 2;
+
+      // Allow generous reach: 100px above bin top (reaching over the lid) and 50px below
+      const inHorizontal = (clientX >= rect.left - 15 && clientX <= rect.right + 15);
+      const inVertical = (clientY >= rect.top - 100 && clientY <= rect.bottom + 50);
+
+      if (inHorizontal && inVertical) {
+        const dist = Math.hypot(clientX - centerX, clientY - centerY);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestZone = zone;
+        }
       }
     }
 
-    // 2. Generous bounding-rect fallback with +20px margin tolerance
-    const zones = this.getDropZones();
-    const margin = 20;
+    if (bestZone) return bestZone;
+
+    // 3. Fallback: if finger released anywhere in the bins horizontal row, pick the nearest bin
     for (let zone of zones) {
       const rect = zone.getBoundingClientRect();
-      if (
-        clientX >= rect.left - margin &&
-        clientX <= rect.right + margin &&
-        clientY >= rect.top - margin &&
-        clientY <= rect.bottom + margin
-      ) {
-        return zone;
+      if (clientY >= rect.top - 120 && clientY <= rect.bottom + 80) {
+        const centerX = (rect.left + rect.right) / 2;
+        const dist = Math.abs(clientX - centerX);
+        if (dist < minDistance && dist < (rect.width * 1.3)) {
+          minDistance = dist;
+          bestZone = zone;
+        }
       }
     }
-    return null;
+
+    return bestZone;
   }
 
   highlightDropZone(activeZone) {

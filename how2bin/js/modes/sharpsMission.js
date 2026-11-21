@@ -350,7 +350,8 @@ class SharpsSafetyMissionMode {
     });
 
     DragEngine.setDropHandler((itemData, targetZoneEl, sourceEl) => {
-      const targetBinId = targetZoneEl.dataset.binId;
+      const binItem = targetZoneEl.closest('[data-bin-id]') || targetZoneEl.closest('[data-drop-target]') || targetZoneEl;
+      const targetBinId = binItem.dataset.binId || binItem.dataset.dropTarget || binItem.getAttribute('data-drop-target');
       this.handleDrop(itemData, targetBinId, sourceEl);
     });
   }
