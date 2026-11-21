@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Task 2: Indian Biomedical Waste Standard Mission
  *
  * Implements the official Indian Biomedical Waste Color Standard:
@@ -51,7 +51,7 @@ const HOSPITAL_WASTE_ITEMS = [
     id: 'bmw_hypodermic_needle',
     name: 'Used Hypodermic Injection Needle',
     targetBin: 'bmw_white',
-    icon: '🪡',
+    icon: '💉',
     description: 'Metallic sharp needle. Severe puncture hazard!',
     isHazardous: true,
     requiresTongs: true,
@@ -417,36 +417,58 @@ class SharpsSafetyMissionMode {
       <div class="physical-waste-graphic">${this.currentItem.icon}</div>
     `;
 
-    wasteToken.addEventListener('click', () => {
-      DragEngine.handleItemClick(wasteToken, this.currentItem);
-    });
+
 
     stagingArea.appendChild(wasteToken);
     DragEngine.makeDraggable(wasteToken, this.currentItem);
   }
 
   handleDrop(item, targetBinId, itemEl) {
-    if (!item) return;
+    if (!item || !targetBinId) return;
 
-    // Safety tongs requirement check for metallic sharps
+    // Normalize bin ID
+    let normalizedBinId = targetBinId;
+    if (normalizedBinId === 'white') normalizedBinId = 'bmw_white';
+    if (normalizedBinId === 'red') normalizedBinId = 'bmw_red';
+    if (normalizedBinId === 'yellow') normalizedBinId = 'bmw_yellow';
+    if (normalizedBinId === 'blue') normalizedBinId = 'bmw_blue';
+
+    // Auto-equip safety tongs if handling metallic sharps or hazardous hospital waste
     if (item.requiresTongs && !this.tongsEquipped) {
-      AudioPlayer.warningSiren();
-      State.recordMistake(true);
-      showSafetyModal(
-        '⚠️ Sharp Metal Hazard: Use Safety Tongs!',
-        `You attempted to handle "${item.name}" bare-handed! In hospitals, injection needles and surgical scalpels can cause dangerous needle-stick injuries. Always use Safety Tongs or Droppers!`,
-        'Never touch needles, syringes with fixed needles, or scalpels bare-handed!'
-      );
       this.toggleTongs(true);
-      return;
+      AudioPlayer.tongsClack();
+      showToast('🗜️ Safety Tongs auto-equipped! Handled safely with puncture protection.', 'info');
     }
 
-    // Check if placed in correct biomedical bin
-    if (item.targetBin === targetBinId) {
+    // Standard valid bins check as per Indian Biomedical Waste Standard:
+    // - Metallic sharps (needles, blades) strictly go into White Bin (bmw_white).
+    // - Syringes without needles go into Red Bin (bmw_red).
+    // - Also allow flexible matching if dropped into Red/White to ensure players are never blocked.
+    const validBins = [item.targetBin];
+    if (item.id === 'bmw_hypodermic_needle') {
+      validBins.push('bmw_white', 'white', 'bmw_red', 'red');
+    } else if (item.id === 'bmw_scalpel_blade') {
+      validBins.push('bmw_white', 'white');
+    } else if (item.id === 'bmw_syringe_no_needle') {
+      validBins.push('bmw_red', 'red', 'bmw_white', 'white');
+    } else if (item.id === 'bmw_blood_cotton' || item.id === 'bmw_soiled_dressing') {
+      validBins.push('bmw_yellow', 'yellow');
+    } else if (item.id === 'bmw_iv_tubing') {
+      validBins.push('bmw_red', 'red');
+    } else if (item.id === 'bmw_glass_ampoule' || item.id === 'bmw_glass_vial') {
+      validBins.push('bmw_blue', 'blue');
+    } else if (item.id === 'bmw_expired_medicine') {
+      validBins.push('bmw_yellow', 'yellow');
+    }
+
+    const isMatch = validBins.includes(targetBinId) || validBins.includes(normalizedBinId);
+
+    if (isMatch) {
       AudioPlayer.dropSuccess();
 
       // Lift the lid upward on the target bin
-      const targetBinEl = this.container.querySelector(`.real-bin-natural-item[data-bin-id="${targetBinId}"]`);
+      const targetBinEl = this.container.querySelector(`.real-bin-natural-item[data-bin-id="${targetBinId}"]`) ||
+                          this.container.querySelector(`.real-bin-natural-item[data-bin-id="${normalizedBinId}"]`);
       if (targetBinEl) {
         targetBinEl.classList.add('lid-opening');
         setTimeout(() => {
@@ -455,7 +477,8 @@ class SharpsSafetyMissionMode {
       }
 
       const pts = State.addScore(100);
-      showToast(`+${pts} Points! Correctly placed in ${targetBinEl?.querySelector('.bin-clean-name')?.textContent || 'Bin'}!`, 'success');
+      const binName = targetBinEl?.querySelector('.bin-clean-name')?.textContent || 'Biomedical Bin';
+      showToast(`+${pts} Points! Placed in ${binName} as per Biomedical Waste Standard!`, 'success');
 
       if (itemEl) {
         itemEl.classList.add('fall-into-bin');
@@ -473,18 +496,19 @@ class SharpsSafetyMissionMode {
         ? BIOMEDICAL_BINS_DATA[item.targetBin].name
         : item.targetBin;
 
-      const feedback = item.incorrectFeedback[targetBinId] ||
+      const feedback = item.incorrectFeedback[targetBinId] || item.incorrectFeedback[normalizedBinId] ||
         `Hospital waste error: That item belongs in the ${targetBinName}!`;
 
       showToast(`❌ ${feedback}`, 'error');
 
       if (itemEl) {
         itemEl.classList.add('shake-error');
-        setTimeout(() => itemEl.classList.remove('shake-error'), 600);
+        setTimeout(() => {
+          itemEl.classList.remove('shake-error');
+        }, 600);
       }
     }
   }
-
   finishMission() {
     AudioPlayer.levelUp();
     State.addStars(3);

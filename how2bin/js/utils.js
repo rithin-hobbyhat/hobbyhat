@@ -32,9 +32,19 @@ function showToast(message, type = 'info') {
   }, 4200);
 }
 
-function showSafetyModal({ title, message, rule, onDismiss }) {
+function showSafetyModal(optionsOrTitle, message, rule, onDismiss) {
   const overlay = document.getElementById('safety-modal-overlay');
   if (!overlay) return;
+
+  let title = '';
+  if (typeof optionsOrTitle === 'object' && optionsOrTitle !== null) {
+    title = optionsOrTitle.title || '';
+    message = optionsOrTitle.message || '';
+    rule = optionsOrTitle.rule || '';
+    onDismiss = optionsOrTitle.onDismiss;
+  } else {
+    title = optionsOrTitle || '';
+  }
 
   const titleEl = document.getElementById('modal-title');
   const msgEl = document.getElementById('modal-message');

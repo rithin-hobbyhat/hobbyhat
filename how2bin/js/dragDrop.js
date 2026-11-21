@@ -264,6 +264,10 @@ class DragDropEngine {
   }
 
   // TAP-TO-SELECT / TAP-TO-PLACE SUPPORT
+  handleItemClick(element, itemData) {
+    this.handleTapSelect(element, itemData);
+  }
+
   handleTapSelect(element, itemData) {
     if (this.selectedItem && this.selectedItem.data.id === itemData.id) {
       this.clearSelection();
